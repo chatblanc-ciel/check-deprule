@@ -1,7 +1,18 @@
 [package]
 name = "check-deprule"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
+authors = ["chatblanc-ciel <73688885+chatblanc-ciel@users.noreply.github.com>"]
+description = "linter for dependency constraints in Cargo.toml"
+keywords = ["cargo", "linter", "dependency", "cli"]
+license = "MIT OR Apache-2.0"
+
+# TODO: write later
+readme = "README.md"
+# repository = ""
+# homepage = ""
+# documentation = ""
+
 
 [dependencies]
 anyhow = "1.0.97"
