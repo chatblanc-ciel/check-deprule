@@ -1,0 +1,4 @@
+[workspace]
+name="ca-normal"
+members = [ "ca-core", "database", "handler","interactor", "repositry"]
+resolver = "3"
