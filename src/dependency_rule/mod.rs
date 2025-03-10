@@ -44,21 +44,19 @@ mod tests {
     fn test_read_dependency_rule_from_file() {
         let path = "tests/test_files/parse_rules_test.toml";
         let expected = DependencyRules {
-            rules: vec![
-                DependencyRule {
-                    package: PackageId {
-                        repr: "package1".to_string(),
-                    },
-                    forbidden_dependencies: HashSet::from_iter([
-                        PackageId {
-                            repr: "package2".to_string(),
-                        },
-                        PackageId {
-                            repr: "package3".to_string(),
-                        },
-                    ]),
+            rules: vec![DependencyRule {
+                package: PackageId {
+                    repr: "package1".to_string(),
                 },
-            ],
+                forbidden_dependencies: HashSet::from_iter([
+                    PackageId {
+                        repr: "package2".to_string(),
+                    },
+                    PackageId {
+                        repr: "package3".to_string(),
+                    },
+                ]),
+            }],
         };
 
         let actual = DependencyRule::from_file(path).unwrap();
