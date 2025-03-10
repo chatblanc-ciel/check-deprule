@@ -100,6 +100,7 @@ dependencies = [
  "petgraph",
  "serde",
  "serde_json",
+ "string-auto-indent",
  "toml",
  "tracing",
 ]
@@ -195,6 +196,12 @@ name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+
+[[package]]
+name = "line-ending"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "834e592123b39b7b3ba3fdc4b7e4822fad3ced449010f8229f843fe6dd1a33f1"
 
 [[package]]
 name = "memchr"
@@ -296,6 +303,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "87607cb1398ed59d48732e575a4c28a7a8ebf2454b964fe3f224f2afc07909e1"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "string-auto-indent"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57898c1e132bc73f5d9dd3c01c6d046ddbe1f7f7bbb26a815288778a91a09b4d"
+dependencies = [
+ "line-ending",
 ]
 
 [[package]]

@@ -1,0 +1,4 @@
+[rules]
+rule = [
+    {package = "package1", forbidden_dependencies = ["package2", "package3"]},
+]
