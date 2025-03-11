@@ -15,6 +15,7 @@ pub struct Graph {
     pub root: Option<PackageId>,
 }
 
+#[derive(Debug, Clone, Default)]
 pub struct DependencyGraphBuildConfigs {
     no_dev_dependencies: bool,
 }
@@ -22,13 +23,6 @@ impl DependencyGraphBuildConfigs {
     pub fn new(no_dev_dependencies: bool) -> Self {
         Self {
             no_dev_dependencies,
-        }
-    }
-}
-impl Default for DependencyGraphBuildConfigs {
-    fn default() -> Self {
-        Self {
-            no_dev_dependencies: false,
         }
     }
 }

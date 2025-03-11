@@ -19,10 +19,11 @@ impl DependencyRule {
     fn new(package: PackageId, forbidden_dependencies: HashSet<PackageId>) -> Self {
         Self {
             package,
-            forbidden_dependencies: HashSet::new(),
+            forbidden_dependencies,
         }
     }
 
+    #[allow(dead_code)]
     fn from_file<P>(path: P) -> Result<DependencyRules, Error>
     where
         P: AsRef<std::path::Path>,
