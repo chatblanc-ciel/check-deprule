@@ -1,6 +1,7 @@
 [package]
-name = "database"
+name = "ca-database"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+ca-repositry = { version = "0.1.0", path = "../repositry" }

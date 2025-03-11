@@ -1,6 +1,9 @@
 [package]
-name = "handler"
+name = "ca-handler"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+actix-web = "4.10.2"
+ca-core = { version = "0.1.0", path = "../ca-core" }
+ca-interactor = { version = "0.1.0", path = "../interactor" }
