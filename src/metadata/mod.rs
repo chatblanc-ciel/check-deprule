@@ -1,11 +1,11 @@
-use anyhow::{anyhow, Context, Error};
+use anyhow::{Context, Error, anyhow};
 use cargo_metadata::Metadata;
 use std::env;
 use std::ffi::OsString;
 use std::process::{Command, Stdio};
 
 #[derive(Debug, Clone)]
-pub struct CollectMetadataConfig{
+pub struct CollectMetadataConfig {
     pub quiet: bool,
     pub features: Option<String>,
     pub all_features: bool,
@@ -20,14 +20,14 @@ pub struct CollectMetadataConfig{
     pub offline: bool,
     pub unstable_flags: Vec<String>,
 }
-impl Default for CollectMetadataConfig{
-    fn default() -> Self{
-        Self{
+impl Default for CollectMetadataConfig {
+    fn default() -> Self {
+        Self {
             quiet: false,
             features: None,
-            all_features: false,
+            all_features: true,
             no_default_features: false,
-            all_targets: false,
+            all_targets: true,
             target: None,
             manifest_path: None,
             verbose: 0,

@@ -19,15 +19,14 @@ impl From<RulesFileSchema> for DependencyRules {
                         repr: rule.package.clone(),
                     };
                     let forbidden_dependencies = HashSet::from_iter(
-                        rule.forbidden_dependencies.iter().map(|p| PackageId { repr: p.clone() }),
+                        rule.forbidden_dependencies
+                            .iter()
+                            .map(|p| PackageId { repr: p.clone() }),
                     );
-
-                    println!("{:?} {:?}", package, forbidden_dependencies);
 
                     DependencyRule::new(package, forbidden_dependencies)
                 })
                 .collect();
-            println!("{:?}", dependency_rules);
             Self {
                 rules: dependency_rules,
             }
@@ -78,8 +77,6 @@ mod tests {
                 ]),
             )],
         };
-
-        println!("{:?}", expected);
 
         let dependency_rules: DependencyRules = rules_file.into();
         assert_eq!(dependency_rules, expected);

@@ -5,6 +5,9 @@ use petgraph::stable_graph::StableGraph;
 use petgraph::visit::Dfs;
 use std::collections::HashMap;
 
+pub(crate) mod formatter;
+pub mod tree;
+
 #[derive(Debug, Clone)]
 pub struct Graph {
     pub graph: StableGraph<Package, DependencyKind>,

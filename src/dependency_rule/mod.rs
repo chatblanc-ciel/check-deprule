@@ -1,6 +1,5 @@
 use anyhow::{Error, Ok};
-use cargo_metadata::{DependencyKind, Metadata, Package, PackageId};
-use serde::{Deserialize, Serialize};
+use cargo_metadata::PackageId;
 use std::{collections::HashSet, fs};
 mod rules_parser;
 
@@ -29,9 +28,8 @@ impl DependencyRule {
         P: AsRef<std::path::Path>,
     {
         let rules_text: String = fs::read_to_string(path)?;
-        println!("{}", rules_text);
         let rules: RulesFileSchema = toml::from_str(&rules_text)?;
-        println!("{:?}", rules);
+
         Ok(rules.into())
     }
 }
