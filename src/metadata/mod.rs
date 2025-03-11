@@ -110,8 +110,8 @@ fn default_target() -> Result<String, Error> {
 
     for line in output.lines() {
         let prefix = "host: ";
-        if line.starts_with(prefix) {
-            return Ok(line[prefix.len()..].trim().to_string());
+        if let Some(stripped_line) = line.strip_prefix(prefix) {
+            return Ok(stripped_line.trim().to_string());
         }
     }
 

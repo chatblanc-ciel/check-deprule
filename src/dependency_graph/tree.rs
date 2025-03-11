@@ -9,7 +9,10 @@ use petgraph::visit::EdgeRef;
 use semver::Version;
 use std::collections::HashSet;
 
+// TODO: dead code回避を精査すること
+
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 enum Prefix {
     None,
     Indent,
@@ -30,6 +33,7 @@ static UTF8_SYMBOLS: Symbols = Symbols {
     right: "─",
 };
 
+#[allow(dead_code)]
 static ASCII_SYMBOLS: Symbols = Symbols {
     down: "|",
     tee: "|",
@@ -142,6 +146,8 @@ fn print_tree<'a>(
     );
 }
 
+// TODO: lint回避の精査
+#[allow(clippy::too_many_arguments)]
 fn print_package<'a>(
     graph: &'a Graph,
     package: &'a Package,
@@ -202,6 +208,8 @@ fn print_package<'a>(
     }
 }
 
+// TODO: lint回避の精査
+#[allow(clippy::too_many_arguments)]
 fn print_dependencies<'a>(
     graph: &'a Graph,
     package: &'a Package,
