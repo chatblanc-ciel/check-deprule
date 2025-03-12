@@ -19,6 +19,7 @@ anyhow = "1.0.97"
 cargo = "0.86.0"
 cargo_metadata = "0.19.2"
 clap = { version = "4.5.31", features = ["derive"] }
+colored = "3.0.0"
 petgraph = "0.7.1"
 semver = "1.0.26"
 serde = { version = "1.0.219", features = ["derive"] }
