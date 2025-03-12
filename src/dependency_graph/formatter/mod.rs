@@ -8,6 +8,7 @@ mod parse;
 enum Chunk {
     Raw(String),
     Package,
+    ViolationPackage,
     License,
     Repository,
 }
@@ -50,11 +51,28 @@ pub struct Display<'a> {
 
 impl fmt::Display for Display<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use colored::Colorize;
+
         for chunk in &self.pattern.0 {
             match *chunk {
                 Chunk::Raw(ref s) => fmt.write_str(s)?,
                 Chunk::Package => {
                     write!(fmt, "{} v{}", self.package.name, self.package.version)?;
+
+                    match &self.package.source {
+                        Some(source) if !source.is_crates_io() => write!(fmt, " ({})", source)?,
+                        // https://github.com/rust-lang/cargo/issues/7483
+                        None => write!(
+                            fmt,
+                            " ({})",
+                            self.package.manifest_path.parent().unwrap().as_str()
+                        )?,
+                        _ => {}
+                    }
+                }
+                Chunk::ViolationPackage => {
+                    let msg = format!("{} v{}", self.package.name, self.package.version);
+                    write!(fmt, "{}", msg.red())?;
 
                     match &self.package.source {
                         Some(source) if !source.is_crates_io() => write!(fmt, " ({})", source)?,
@@ -81,5 +99,37 @@ impl fmt::Display for Display<'_> {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cargo_metadata::PackageId;
+    use colored::Colorize;
+    use semver::Version;
+
+    use super::*;
+
+    #[test]
+    fn test_chunk_violation_format() {
+        let violation_package_display = Display {
+            pattern: &Pattern {
+                0: vec![Chunk::ViolationPackage],
+            },
+            package: &cargo_metadata::PackageBuilder::new(
+                "package".to_string(),
+                Version::parse("1.0.0").unwrap(),
+                PackageId {
+                    repr: "pa".to_string(),
+                },
+                "/hoge".to_string(),
+            )
+            .build()
+            .unwrap(),
+        };
+        let expected = format!("{} {}", "package v1.0.0".red(), "(/)");
+
+        let actual = format!("{}", violation_package_display);
+        assert_eq!(expected, actual);
     }
 }
