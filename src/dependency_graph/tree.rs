@@ -8,6 +8,7 @@ use petgraph::EdgeDirection;
 use petgraph::visit::EdgeRef;
 use semver::Version;
 use std::collections::HashSet;
+use std::path::Path;
 
 // TODO: dead code回避を精査すること
 
@@ -58,9 +59,8 @@ impl std::str::FromStr for Charset {
     }
 }
 
-pub fn print(graph: &Graph) -> Result<(), Error> {
+pub fn print<P: AsRef<Path>>(graph: &Graph, manifest_path: P) -> Result<(), Error> {
     let glcx = GlobalContext::default()?;
-    let manifest_path = std::path::Path::new("tests/demo_crates/clean-arch/Cargo.toml");
     let ws = Workspace::new(std::path::absolute(manifest_path)?.as_path(), &glcx)?;
 
     let format = Pattern::new("{p}")?;
