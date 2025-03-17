@@ -1,0 +1,11 @@
+[[rules.rule]]
+package = "tangled-ca-core"
+forbidden_dependencies = ["tangled-ca-database", "tangled-ca-handler"]
+
+[[rules.rule]]
+package = "tangled-ca-interactor"
+forbidden_dependencies = [
+    "tangled-ca-database",
+    "tangled-ca-handler",
+    "tangled-ca-repositry",
+]

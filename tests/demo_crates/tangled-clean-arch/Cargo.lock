@@ -3,21 +3,34 @@
 version = 4
 
 [[package]]
-name = "ca-core"
+name = "tangled-ca-core"
+version = "0.1.0"
+dependencies = [
+ "tangled-ca-database",
+ "tangled-ca-handler",
+]
+
+[[package]]
+name = "tangled-ca-database"
+version = "0.1.0"
+dependencies = [
+ "tangled-ca-repositry",
+]
+
+[[package]]
+name = "tangled-ca-handler"
 version = "0.1.0"
 
 [[package]]
-name = "database"
+name = "tangled-ca-interactor"
 version = "0.1.0"
+dependencies = [
+ "tangled-ca-core",
+ "tangled-ca-database",
+ "tangled-ca-handler",
+ "tangled-ca-repositry",
+]
 
 [[package]]
-name = "handler"
-version = "0.1.0"
-
-[[package]]
-name = "interactor"
-version = "0.1.0"
-
-[[package]]
-name = "repositry"
+name = "tangled-ca-repositry"
 version = "0.1.0"
