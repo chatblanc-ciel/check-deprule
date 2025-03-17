@@ -1,11 +1,11 @@
-use anyhow::{Error, anyhow};
+use anyhow::{Result, anyhow};
 use cargo_metadata::Package;
 use parse::{Parser, RawChunk};
 use std::fmt;
-
 mod parse;
 
-enum Chunk {
+#[derive(Debug)]
+pub(crate) enum Chunk {
     Raw(String),
     Package,
     ViolationPackage,
@@ -13,10 +13,10 @@ enum Chunk {
     Repository,
 }
 
-pub struct Pattern(Vec<Chunk>);
+pub struct Pattern(pub(crate) Vec<Chunk>);
 
 impl Pattern {
-    pub fn new(format: &str) -> Result<Pattern, Error> {
+    pub fn new(format: &str) -> Result<Pattern> {
         let mut chunks = vec![];
 
         for raw in Parser::new(format) {

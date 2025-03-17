@@ -7,24 +7,23 @@ use rules_parser::RulesFileSchema;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DependencyRules {
-    rules: Vec<DependencyRule>,
+    pub(crate) rules: Vec<DependencyRule>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct DependencyRule {
-    package: PackageId,
-    forbidden_dependencies: HashSet<PackageId>,
+pub(crate) struct DependencyRule {
+    pub(crate) package: PackageId,
+    pub(crate) forbidden_dependencies: HashSet<PackageId>,
 }
 impl DependencyRule {
-    fn new(package: PackageId, forbidden_dependencies: HashSet<PackageId>) -> Self {
+    pub(crate) fn new(package: PackageId, forbidden_dependencies: HashSet<PackageId>) -> Self {
         Self {
             package,
             forbidden_dependencies,
         }
     }
 
-    #[allow(dead_code)]
-    fn from_file<P>(path: P) -> Result<DependencyRules, Error>
+    pub(crate) fn from_file<P>(path: P) -> Result<DependencyRules, Error>
     where
         P: AsRef<std::path::Path>,
     {
