@@ -1,24 +1,52 @@
-use std::{env, path::Path};
+use std::{env, path::Path, process::ExitCode};
 
 pub mod dependency_graph;
 pub mod dependency_rule;
 pub mod metadata;
 
+#[derive(Debug, Clone)]
+pub enum ReturnStatus {
+    NoViolation,
+    Violation,
+}
+impl ReturnStatus {
+    pub fn to_return_code(&self) -> ExitCode {
+        match self {
+            ReturnStatus::NoViolation => ExitCode::SUCCESS,
+            ReturnStatus::Violation => ExitCode::FAILURE,
+        }
+    }
+}
+
 pub fn handler(
     graph_build_configs: dependency_graph::DependencyGraphBuildConfigs,
     metadata_configs: metadata::CollectMetadataConfig,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<ReturnStatus> {
     let metadata = metadata::collect_metadata(metadata_configs.clone())?;
     let graph = dependency_graph::build_dependency_graph(metadata, graph_build_configs)?;
 
     if let Some(manifest_path) = metadata_configs.manifest_path {
-        dependency_graph::tree::print(&graph, Path::new(&manifest_path))?;
-    } else {
-        let manifest_path = format!("{}/Cargo.toml", env::current_dir()?.display());
-        dependency_graph::tree::print(&graph, manifest_path)?;
-    }
+        let manifest_path = Path::new(&manifest_path);
+        let rules = dependency_rule::DependencyRule::from_file(
+            manifest_path
+                .parent()
+                .unwrap()
+                .join(Path::new("/dependency_rules.toml")),
+        )?;
 
-    Ok(())
+        dependency_graph::tree::print(&graph, manifest_path, rules)
+    } else {
+        let current_dir = env::current_dir()?;
+        let manifest_path = current_dir.join(Path::new("Cargo.toml"));
+        let rules = dependency_rule::DependencyRule::from_file(
+            manifest_path
+                .parent()
+                .unwrap()
+                .join(Path::new("dependency_rules.toml")),
+        )?;
+
+        dependency_graph::tree::print(&graph, manifest_path, rules)
+    }
 }
 
 #[cfg(test)]
