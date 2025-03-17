@@ -1,6 +1,7 @@
 [package]
-name = "database"
+name = "tangled-ca-database"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tangled-ca-repositry = { version = "0.1.0", path = "../repositry" }

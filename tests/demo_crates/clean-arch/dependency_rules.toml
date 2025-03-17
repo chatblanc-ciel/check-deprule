@@ -1,0 +1,7 @@
+[[rules.rule]]
+package = "ca-core"
+forbidden_dependencies = ["database", "handler"]
+
+[[rules.rule]]
+package = "ca-interactor"
+forbidden_dependencies = ["database", "handler"]

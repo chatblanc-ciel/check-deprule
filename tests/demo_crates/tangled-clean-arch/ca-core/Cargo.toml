@@ -1,6 +1,8 @@
 [package]
-name = "ca-core"
+name = "tangled-ca-core"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tangled-ca-database = { version = "0.1.0", path = "../database" }
+tangled-ca-handler = { version = "0.1.0", path = "../handler" }
