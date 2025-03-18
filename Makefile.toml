@@ -1,0 +1,5 @@
+[tasks.version-upgrade]
+description = "Upgrade the self package version"
+install_crate = { crate_name = "cargo-version-upgrade", binary = "cargo-version-upgrade", test_arg = "--help" }
+command = "cargo-version-upgrade"
+args = ["@@split(CARGO_MAKE_TASK_ARGS,;)"]
