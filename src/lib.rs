@@ -56,6 +56,7 @@ mod tests {
     use anyhow::Result;
 
     #[test]
+    #[ignore]
     fn test_main() -> Result<()> {
         let build_config = DependencyGraphBuildConfigs::default();
         let collect_metadata_config = CollectMetadataConfig {
@@ -63,7 +64,37 @@ mod tests {
             ..CollectMetadataConfig::default()
         };
 
-        handler(build_config, collect_metadata_config)?;
+        let _ = handler(build_config, collect_metadata_config)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_handler_success() -> Result<()> {
+        let expected_return_code = ExitCode::SUCCESS;
+        let build_config = DependencyGraphBuildConfigs::default();
+        let collect_metadata_config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+
+        let result = handler(build_config, collect_metadata_config)?;
+        assert_eq!(result.to_return_code(), expected_return_code);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_handler_failure() -> Result<()> {
+        let expected_return_code = ExitCode::FAILURE;
+        let build_config = DependencyGraphBuildConfigs::default();
+        let collect_metadata_config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/tangled-clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+
+        let result = handler(build_config, collect_metadata_config)?;
+        assert_eq!(result.to_return_code(), expected_return_code);
 
         Ok(())
     }
