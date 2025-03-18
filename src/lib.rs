@@ -31,7 +31,7 @@ pub fn handler(
             manifest_path
                 .parent()
                 .unwrap()
-                .join(Path::new("/dependency_rules.toml")),
+                .join(Path::new("dependency_rules.toml")),
         )?;
 
         dependency_graph::tree::print(&graph, manifest_path, rules)
