@@ -1,20 +1,20 @@
 name: version upgrade
-on: 
+on:
   push:
     branches:
       - master
   workflow_dispatch:
     inputs:
       type:
-        description: 'The version to upgrade to'
+        description: "The version to upgrade to [major, minor, patch]"
         required: true
         options:
-          - 'major'
-          - 'minor'
-          - 'patch'
-        default: 'patch'
+          - "major"
+          - "minor"
+          - "patch"
+        default: "patch"
       prerelease-tags:
-        description: 'Tags using upgrade to a prerelease version(e.g. beta, alpha)'
+        description: "Tags using upgrade to a prerelease version(e.g. beta, alpha)"
         required: false
         default: null
 env:
@@ -50,26 +50,26 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git checkout -b ${{ env.BRANCH_NAME }}
-      
+
       - name: Version upgrade
         if: inputs.prerelease-tags == null
         run: |
           cargo make version-upgrade ${{ inputs.type }}
-      
+
       - name: Version upgrade(Pre-release)
         if: inputs.prerelease-tags != null
         run: |
           cargo make version-upgrade ${{ inputs.type }} --tags ${{ inputs.prerelease-tags }}
-    
+
       - name: push branch to origin
         run: |
           git push --set-upstream origin ${{ env.BRANCH_NAME }}
-      
+
       - name: print next version number
         id: next_version_number
         run: |
           echo "version_up_message=$(cargo pkgid | awk -F'[#@]' '{print $NF}')" >> $GITHUB_OUTPUT
-      
+
       # prepare PR body including changes
       # to avoid facing special character issue, save it as a temporary file
       - name: create PR body changes
@@ -91,7 +91,7 @@ jobs:
           -B main \
           -t 'Upgrade to `v${{ steps.next_version_number.outputs.version_up_message }}`' \
           -F pr_body.md
-  
+
   # バージョンアップ後のタグを作成するためのジョブ
   # `master` ブランチにマージされた際に実行される
   create-tag:
@@ -110,21 +110,19 @@ jobs:
       - name: Get current version
         id: get_current_version
         run: |
-          echo "current-version=$(cargo pkgid | awk -F'[#@]' '{print $NF}')" >> $GITHUB_ENV
-      
+          echo "current-version=$(cargo pkgid | awk -F'[#@]' '{print $NF}')" >> $GITHUB_OUTPUT
+
       - name: Get previous tag
         id: get_previous_tag
         run: |
-          echo "previous-tag=$(git ls-remote --tags --sort=v:refname origin '*.*.*' | tail -n 2 | head -n 1 | cut -f 2 | cut -d '/' -f 3)" >> $GITHUB_ENV
+          echo "previous-tag=$(git ls-remote --tags --sort=v:refname origin '*.*.*' | tail -n 2 | head -n 1 | cut -f 2 | cut -d '/' -f 3)" >> $GITHUB_OUTPUT
 
-      - uses: mathieudutour/github-tag-action@v6.1
-        id: tag-action
+      - name: Create tag
+        id: tag-creation
         if: steps.get_current_version.outputs.current-version != steps.get_previous_tag.outputs.previous-tag
-        with:
-          # tag_prefix: v
-          custom_tag: ${{ get_current_version.outputs.current-version }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: false
+        run: |
+          git tag -a ${{ steps.get_current_version.outputs.current-version }} -m "Release ${{ steps.get_current_version.outputs.current-version }}"
+          git push origin ${{ steps.get_current_version.outputs.current-version }}
 
   actions-timeline:
     needs: [version-upgrade, create-tag]
