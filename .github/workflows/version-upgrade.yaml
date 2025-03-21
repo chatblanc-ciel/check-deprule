@@ -101,7 +101,7 @@ jobs:
         run: |
           gh pr create \
           --fill \
-          -B main \
+          -B master \
           -t 'Upgrade to `v${{ steps.next_version_number.outputs.version_up_message }}`' \
           -F pr_body.md
 
@@ -139,6 +139,7 @@ jobs:
 
   actions-timeline:
     needs: [version-upgrade, create-tag]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: Kesin11/actions-timeline@v2
