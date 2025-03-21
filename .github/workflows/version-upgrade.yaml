@@ -1,5 +1,8 @@
 name: version upgrade
 on: 
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       type:
@@ -18,8 +21,16 @@ env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   BRANCH_NAME: bot-version-upgrade
 
+permissions:
+  actions: write
+  checks: write
+  contents: write
+
 jobs:
+  # 主にバージョンアップを行うためのジョブ
+  # `workflow_dispatch` で手動実行することを想定
   version-upgrade:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,3 +91,43 @@ jobs:
           -B main \
           -t 'Upgrade to `v${{ steps.next_version_number.outputs.version_up_message }}`' \
           -F pr_body.md
+  
+  # バージョンアップ後のタグを作成するためのジョブ
+  # `master` ブランチにマージされた際に実行される
+  create-tag:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      #   with:
+      #     components: rustfmt, clippy
+      #     cache-shared-key: setup-rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Get current version
+        id: get_current_version
+        run: |
+          echo "current-version=$(cargo pkgid | awk -F'[#@]' '{print $NF}')" >> $GITHUB_ENV
+      
+      - name: Get previous tag
+        id: get_previous_tag
+        run: |
+          echo "previous-tag=$(git ls-remote --tags --sort=v:refname origin '*.*.*' | tail -n 2 | head -n 1 | cut -f 2 | cut -d '/' -f 3)" >> $GITHUB_ENV
+
+      - uses: mathieudutour/github-tag-action@v6.1
+        id: tag-action
+        if: steps.get_current_version.outputs.current-version != steps.get_previous_tag.outputs.previous-tag
+        with:
+          # tag_prefix: v
+          custom_tag: ${{ get_current_version.outputs.current-version }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: false
+
+  actions-timeline:
+    needs: [version-upgrade, create-tag]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Kesin11/actions-timeline@v2
