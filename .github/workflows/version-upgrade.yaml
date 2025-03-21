@@ -1,0 +1,82 @@
+name: version upgrade
+on: 
+  workflow_dispatch:
+    inputs:
+      type:
+        description: 'The version to upgrade to'
+        required: true
+        options:
+          - 'major'
+          - 'minor'
+          - 'patch'
+        default: 'patch'
+      prerelease-tags:
+        description: 'Tags using upgrade to a prerelease version(e.g. beta, alpha)'
+        required: false
+        default: null
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  BRANCH_NAME: bot-version-upgrade
+
+jobs:
+  version-upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      #   with:
+      #     components: rustfmt, clippy
+      #     cache-shared-key: setup-rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-make
+        run: cargo install --no-default-features --force cargo-make
+
+      - name: Create new branch
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git checkout -b ${{ env.BRANCH_NAME }}
+      
+      - name: Version upgrade
+        if: inputs.prerelease-tags == null
+        run: |
+          cargo make version-upgrade ${{ inputs.type }}
+      
+      - name: Version upgrade(Pre-release)
+        if: inputs.prerelease-tags != null
+        run: |
+          cargo make version-upgrade ${{ inputs.type }} --tags ${{ inputs.prerelease-tags }}
+    
+      - name: push branch to origin
+        run: |
+          git push --set-upstream origin ${{ env.BRANCH_NAME }}
+      
+      - name: print next version number
+        id: next_version_number
+        run: |
+          echo "version_up_message=$(cargo pkgid | awk -F'[#@]' '{print $NF}')" >> $GITHUB_OUTPUT
+      
+      # prepare PR body including changes
+      # to avoid facing special character issue, save it as a temporary file
+      - name: create PR body changes
+        id: create_pr_body_changes
+        env:
+          PREVIOUS_TAG: ${{ steps.get_previous_tag.outputs.previous_tag }}
+        run: |
+          `cat <<EOF > pr_body.md
+          [Changes]
+          ---
+          $(git log ${{ env.PREVIOUS_TAG }}...HEAD --graph --pretty='format:%h: %d %s')
+          EOF`
+
+      - name: create upgrade PR
+        id: create_version_upgrade_pr
+        run: |
+          gh pr create \
+          --fill \
+          -B main \
+          -t 'Upgrade to `v${{ steps.next_version_number.outputs.version_up_message }}`' \
+          -F pr_body.md
