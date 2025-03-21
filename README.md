@@ -1,4 +1,7 @@
 # check-dependency-rule
+
+English version is [here](./docs/README_en.md).
+
 ## 使い方
 ### `dependency_rules.toml`
 
