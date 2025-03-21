@@ -92,7 +92,7 @@ jobs:
               "tag_name": "${{ env.NEXT_VERSION }}",
               "previous_tag_name": "${{ env.PREVIOUS_TAG }}",
               "target_commitish": "master"
-            }' | jq .body | sed 's/"//g' > pr_body.md
+            }' | jq .body | sed 's/"//g' | sed 's/\n/%0A/g' > pr_body.md
 
       - name: create upgrade PR
         id: create_version_upgrade_pr
