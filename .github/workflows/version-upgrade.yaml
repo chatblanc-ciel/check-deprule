@@ -104,7 +104,7 @@ jobs:
           --fill \
           --base master \
           --title 'Upgrade to `v${{ steps.next_version_number.outputs.version_up_message }}`' \
-          --body "${{ steps.release_note.outputs.release_note }}"
+          --body ${{ steps.release_note.outputs.release_note }}
 
   # バージョンアップ後のタグを作成するためのジョブ
   # `master` ブランチにマージされた際に実行される
