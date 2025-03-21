@@ -95,3 +95,9 @@ jobs:
         uses: k1LoW/octocov-action@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+  
+  actions-timeline:
+    needs: [check, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Kesin11/actions-timeline@v2
