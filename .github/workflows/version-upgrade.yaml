@@ -6,12 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       type:
-        description: "The version to upgrade to [major, minor, patch]"
+        description: "The version to upgrade to [major, minor, patch, pre]"
         required: true
         options:
           - "major"
           - "minor"
           - "patch"
+          - "pre"
         default: "patch"
       prerelease-tags:
         description: "Tags using upgrade to a prerelease version(e.g. beta, alpha)"
@@ -106,7 +107,7 @@ jobs:
           `cat <<EOF > pr_body.md
           # [Changes] Upgrade to \`v${{ env.NEXT_VERSION }}\`
           ---
-          ${{ env.RELEASE_NOTE }}
+          $(${{ env.RELEASE_NOTE }} | sed 's/`/\`/g')
           EOF`
 
       - name: create upgrade PR
