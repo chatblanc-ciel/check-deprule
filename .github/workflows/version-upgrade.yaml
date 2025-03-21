@@ -94,7 +94,7 @@ jobs:
               "previous_tag_name": "${{ env.PREVIOUS_TAG }}",
               "target_commitish": "master"
             }' | jq .body |\
-            sed 's/"//g' | sed 's/%/ %25 /g' | sed 's/\\n/ %0A /g' | sed 's/\\r/ %0D /g'
+            sed 's/"//g'
           )" >> $GITHUB_OUTPUT
 
       - name: create upgrade PR
