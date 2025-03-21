@@ -109,11 +109,17 @@ jobs:
 
   # バージョンアップ後のタグを作成するためのジョブ
   # `master` ブランチにマージされた際に実行される
+  #
+  # Note:
+  # `GITHUB_TOKEN`による認証だと、`push` イベントのトリガーが発生しないため、
+  # `GitHub App` による認証・トークン発行を行う
+  # ref:
+  # https://docs.github.com/ja/actions/writing-workflows/choosing-when-your-workflow-runs/triggering-a-workflow#triggering-a-workflow-from-a-workflow
   create-tag:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - name: Generate  GitHub App token
+      - name: Generate GitHub App token
         id: generate-token
         uses: actions/create-github-app-token@v1
         with:
