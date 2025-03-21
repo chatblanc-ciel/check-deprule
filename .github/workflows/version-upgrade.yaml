@@ -84,7 +84,7 @@ jobs:
           NEXT_VERSION: ${{ steps.next_version_number.outputs.version_up_message }}
           PREVIOUS_TAG: ${{ steps.get_previous_tag.outputs.previous-tag }}
         run: |
-          curl -X POST \
+          release_note = $(curl -X POST \
             -H 'Accept: application/vnd.github.v3+json' \
             -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' \
             https://api.github.com/repos/${{ github.repository }}/releases/generate-notes \
@@ -92,16 +92,20 @@ jobs:
               "tag_name": "${{ env.NEXT_VERSION }}",
               "previous_tag_name": "${{ env.PREVIOUS_TAG }}",
               "target_commitish": "master"
-            }' | jq .body | sed 's/"//g' | sed 's/\\n/%0a/g' > pr_body.md
+            }' | jq .body | sed 's/"//g')
+          release_note="${release_note//'%'/'%25'}"
+          release_note="${release_note//$'\n'/'%0A'}"
+          release_note="${release_note//$'\r'/'%0D'}" 
+          echo "release_note=${release_note}" >> $GITHUB_OUTPUT
 
       - name: create upgrade PR
         id: create_version_upgrade_pr
         run: |
           gh pr create \
           --fill \
-          -B master \
-          -t 'Upgrade to `v${{ steps.next_version_number.outputs.version_up_message }}`' \
-          -F pr_body.md
+          --base master \
+          --title 'Upgrade to `v${{ steps.next_version_number.outputs.version_up_message }}`' \
+          --body "${{ steps.release_note.outputs.release_note }}"
 
   # バージョンアップ後のタグを作成するためのジョブ
   # `master` ブランチにマージされた際に実行される
