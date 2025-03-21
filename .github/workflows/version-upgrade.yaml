@@ -71,15 +71,21 @@ jobs:
         run: |
           echo "version_up_message=$(cargo pkgid | awk -F'[#@]' '{print $NF}')" >> $GITHUB_OUTPUT
 
+      - name: Get previous tag
+        id: get_previous_tag
+        run: |
+          echo "previous-tag=$(git ls-remote --tags --sort=v:refname origin '*.*.*' | tail -n 2 | head -n 1 | cut -f 2 | cut -d '/' -f 3)" >> $GITHUB_OUTPUT
+
       # prepare PR body including changes
       # to avoid facing special character issue, save it as a temporary file
       - name: create PR body changes
         id: create_pr_body_changes
         env:
+          NEXT_VERSION: ${{ steps.next_version_number.outputs.version_up_message }}
           PREVIOUS_TAG: ${{ steps.get_previous_tag.outputs.previous_tag }}
         run: |
           `cat <<EOF > pr_body.md
-          [Changes]
+          [Changes] Upgrade to \`v${{ env.NEXT_VERSION }}\`
           ---
           $(git log ${{ env.PREVIOUS_TAG }}...HEAD --graph --pretty='format:%h: %d %s')
           EOF`
