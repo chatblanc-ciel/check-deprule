@@ -76,18 +76,37 @@ jobs:
         run: |
           echo "previous-tag=$(git ls-remote --tags --sort=v:refname origin '*.*.*' | tail -n 2 | head -n 1 | cut -f 2 | cut -d '/' -f 3)" >> $GITHUB_OUTPUT
 
+      # 前回リリースからの差分をもとに、変更点を取得する
+      - name: Generate release note changes
+        id: release_note
+        env:
+          NEXT_VERSION: ${{ steps.next_version_number.outputs.version_up_message }}
+          PREVIOUS_TAG: ${{ steps.get_previous_tag.outputs.previous-tag }}
+        run: |
+          echo "changes=$(
+          curl -X POST \
+            -H 'Accept: application/vnd.github.v3+json' \
+            -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' \
+            https://api.github.com/repos/${{ github.repository }}/releases/generate-notes \
+            -d '{
+              "tag_name": "${{ env.NEXT_VERSION }}",
+              "previous_tag_name": "${{ env.PREVIOUS_TAG }}",
+              "target_commitish": "master"
+            }' | jq .body
+          )" >> $GITHUB_OUTPUT
+
       # prepare PR body including changes
       # to avoid facing special character issue, save it as a temporary file
       - name: create PR body changes
         id: create_pr_body_changes
         env:
           NEXT_VERSION: ${{ steps.next_version_number.outputs.version_up_message }}
-          PREVIOUS_TAG: ${{ steps.get_previous_tag.outputs.previous_tag }}
+          RELEASE_NOTE: ${{ steps.release_note.outputs.changes }}
         run: |
           `cat <<EOF > pr_body.md
-          [Changes] Upgrade to \`v${{ env.NEXT_VERSION }}\`
+          # [Changes] Upgrade to \`v${{ env.NEXT_VERSION }}\`
           ---
-          $(git log ${{ env.PREVIOUS_TAG }}...HEAD --graph --pretty='format:%h: %d %s')
+          ${{ env.RELEASE_NOTE }}
           EOF`
 
       - name: create upgrade PR
