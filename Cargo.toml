@@ -1,6 +1,6 @@
 [package]
 name = "check-deprule"
-version = "0.0.2-alpha.1"
+version = "0.0.3"
 edition = "2024"
 authors = ["chatblanc-ciel <73688885+chatblanc-ciel@users.noreply.github.com>"]
 description = "linter for dependency constraints in Cargo.toml"
