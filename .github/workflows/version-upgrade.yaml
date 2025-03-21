@@ -25,6 +25,7 @@ permissions:
   actions: write
   checks: write
   contents: write
+  pull-requests: write
 
 jobs:
   # 主にバージョンアップを行うためのジョブ
