@@ -1,25 +1,36 @@
 name: version upgrade
-on: 
+on:
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       type:
-        description: 'The version to upgrade to'
+        description: "The version to upgrade to [major, minor, patch]"
         required: true
         options:
-          - 'major'
-          - 'minor'
-          - 'patch'
-        default: 'patch'
+          - "major"
+          - "minor"
+          - "patch"
+        default: "patch"
       prerelease-tags:
-        description: 'Tags using upgrade to a prerelease version(e.g. beta, alpha)'
+        description: "Tags using upgrade to a prerelease version(e.g. beta, alpha)"
         required: false
         default: null
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   BRANCH_NAME: bot-version-upgrade
 
+permissions:
+  actions: write
+  checks: write
+  contents: write
+
 jobs:
+  # 主にバージョンアップを行うためのジョブ
+  # `workflow_dispatch` で手動実行することを想定
   version-upgrade:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,26 +50,26 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git checkout -b ${{ env.BRANCH_NAME }}
-      
+
       - name: Version upgrade
         if: inputs.prerelease-tags == null
         run: |
           cargo make version-upgrade ${{ inputs.type }}
-      
+
       - name: Version upgrade(Pre-release)
         if: inputs.prerelease-tags != null
         run: |
           cargo make version-upgrade ${{ inputs.type }} --tags ${{ inputs.prerelease-tags }}
-    
+
       - name: push branch to origin
         run: |
           git push --set-upstream origin ${{ env.BRANCH_NAME }}
-      
+
       - name: print next version number
         id: next_version_number
         run: |
           echo "version_up_message=$(cargo pkgid | awk -F'[#@]' '{print $NF}')" >> $GITHUB_OUTPUT
-      
+
       # prepare PR body including changes
       # to avoid facing special character issue, save it as a temporary file
       - name: create PR body changes
@@ -80,3 +91,41 @@ jobs:
           -B main \
           -t 'Upgrade to `v${{ steps.next_version_number.outputs.version_up_message }}`' \
           -F pr_body.md
+
+  # バージョンアップ後のタグを作成するためのジョブ
+  # `master` ブランチにマージされた際に実行される
+  create-tag:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      #   with:
+      #     components: rustfmt, clippy
+      #     cache-shared-key: setup-rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Get current version
+        id: get_current_version
+        run: |
+          echo "current-version=$(cargo pkgid | awk -F'[#@]' '{print $NF}')" >> $GITHUB_OUTPUT
+
+      - name: Get previous tag
+        id: get_previous_tag
+        run: |
+          echo "previous-tag=$(git ls-remote --tags --sort=v:refname origin '*.*.*' | tail -n 2 | head -n 1 | cut -f 2 | cut -d '/' -f 3)" >> $GITHUB_OUTPUT
+
+      - name: Create tag
+        id: tag-creation
+        if: steps.get_current_version.outputs.current-version != steps.get_previous_tag.outputs.previous-tag
+        run: |
+          git tag -a ${{ steps.get_current_version.outputs.current-version }} -m "Release ${{ steps.get_current_version.outputs.current-version }}"
+          git push origin ${{ steps.get_current_version.outputs.current-version }}
+
+  actions-timeline:
+    needs: [version-upgrade, create-tag]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Kesin11/actions-timeline@v2
