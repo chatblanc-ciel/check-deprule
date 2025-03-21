@@ -100,11 +100,12 @@ jobs:
       - name: create upgrade PR
         id: create_version_upgrade_pr
         run: |
+          echo -e "${{ steps.release_note.outputs.release_note }}" |\
           gh pr create \
           --fill \
           --base master \
           --title 'Upgrade to `v${{ steps.next_version_number.outputs.version_up_message }}`' \
-          --body "${{ steps.release_note.outputs.release_note }}"
+          --body-file -
 
   # バージョンアップ後のタグを作成するためのジョブ
   # `master` ブランチにマージされた際に実行される
