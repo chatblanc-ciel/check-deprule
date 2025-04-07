@@ -121,7 +121,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: generate-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.CHATBLANC_TOKEN_GENERATOR_APP_ID }}
           private-key: ${{ secrets.CHATBLANC_TOKEN_GENERATOR_PRIVATE_KEY }}
