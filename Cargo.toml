@@ -16,7 +16,7 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.97"
-cargo = "0.87.1"
+cargo = "0.88.0"
 cargo_metadata = {version = "0.19.2", features = ["builder"]}
 clap = { version = "4.5.35", features = ["derive"] }
 colored = "3.0.0"
