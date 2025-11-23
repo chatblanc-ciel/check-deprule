@@ -35,7 +35,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -126,7 +126,7 @@ jobs:
           app-id: ${{ secrets.CHATBLANC_TOKEN_GENERATOR_APP_ID }}
           private-key: ${{ secrets.CHATBLANC_TOKEN_GENERATOR_PRIVATE_KEY }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
