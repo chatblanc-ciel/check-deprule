@@ -44,6 +44,7 @@ pub fn handler(
         dependency_rule::DependencyRules::from_file(rules_dir.join("dependency_rules.toml"))?;
 
     dependency_graph::tree::print(
+        &mut std::io::stdout(),
         &graph,
         &metadata,
         rules,

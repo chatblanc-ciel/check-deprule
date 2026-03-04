@@ -9,6 +9,7 @@ use cargo_metadata::{DependencyKind, Metadata, Package, PackageId};
 use petgraph::EdgeDirection;
 use petgraph::visit::EdgeRef;
 use std::collections::HashSet;
+use std::io::Write;
 
 #[derive(Clone, Copy)]
 pub enum Prefix {
@@ -78,7 +79,8 @@ impl Default for TreePrintConfig {
     }
 }
 
-struct TreePrinter<'a> {
+struct TreePrinter<'a, W: Write> {
+    writer: W,
     graph: &'a Graph,
     format: Pattern,
     direction: EdgeDirection,
@@ -90,13 +92,15 @@ struct TreePrinter<'a> {
     levels_continue: Vec<bool>,
 }
 
-impl<'a> TreePrinter<'a> {
+impl<'a, W: Write> TreePrinter<'a, W> {
     fn new(
+        writer: W,
         graph: &'a Graph,
         rules: &'a DependencyRules,
         config: TreePrintConfig,
     ) -> Result<Self, Error> {
         Ok(Self {
+            writer,
             graph,
             format: Pattern::new("{p}")?,
             direction: EdgeDirection::Outgoing,
@@ -109,7 +113,7 @@ impl<'a> TreePrinter<'a> {
         })
     }
 
-    fn print_root(&mut self, root: &'a Package) -> ReturnStatus {
+    fn print_root(&mut self, root: &'a Package) -> Result<ReturnStatus, Error> {
         self.visited_deps.clear();
         self.levels_continue.clear();
         self.print_package(None, root, ReturnStatus::NoViolation)
@@ -120,16 +124,16 @@ impl<'a> TreePrinter<'a> {
         parent_package: Option<&'a Package>,
         package: &'a Package,
         parent_return_status: ReturnStatus,
-    ) -> ReturnStatus {
+    ) -> Result<ReturnStatus, Error> {
         let new = self.all || self.visited_deps.insert(&package.id);
 
         match self.prefix {
-            Prefix::Depth => print!("{}", self.levels_continue.len()),
+            Prefix::Depth => write!(self.writer, "{}", self.levels_continue.len())?,
             Prefix::Indent => {
                 if let Some((last_continues, rest)) = self.levels_continue.split_last() {
                     for continues in rest {
                         let c = if *continues { self.symbols.down } else { " " };
-                        print!("{c}   ");
+                        write!(self.writer, "{c}   ")?;
                     }
 
                     let c = if *last_continues {
@@ -137,7 +141,7 @@ impl<'a> TreePrinter<'a> {
                     } else {
                         self.symbols.ell
                     };
-                    print!("{0}{1}{1} ", c, self.symbols.right);
+                    write!(self.writer, "{0}{1}{1} ", c, self.symbols.right)?;
                 }
             }
             Prefix::None => {}
@@ -162,13 +166,13 @@ impl<'a> TreePrinter<'a> {
         match is_violation {
             true => {
                 let f = Pattern(vec![Chunk::ViolationPackage]);
-                println!("{}{}", f.display(package), star);
+                writeln!(self.writer, "{}{}", f.display(package), star)?;
             }
-            false => println!("{}{}", self.format.display(package), star),
+            false => writeln!(self.writer, "{}{}", self.format.display(package), star)?,
         };
 
         if !new {
-            return parent_return_status.merge(is_violation);
+            return Ok(parent_return_status.merge(is_violation));
         }
 
         for kind in &[
@@ -178,14 +182,14 @@ impl<'a> TreePrinter<'a> {
         ] {
             let current_return_status = parent_return_status.clone().merge(is_violation);
 
-            let result = self.print_dependencies(package, *kind, current_return_status);
+            let result = self.print_dependencies(package, *kind, current_return_status)?;
 
             if let ReturnStatus::Violation = result {
                 is_violation = true;
             }
         }
 
-        parent_return_status.merge(is_violation)
+        Ok(parent_return_status.merge(is_violation))
     }
 
     fn print_dependencies(
@@ -193,11 +197,12 @@ impl<'a> TreePrinter<'a> {
         package: &'a Package,
         kind: DependencyKind,
         parent_return_status: ReturnStatus,
-    ) -> ReturnStatus {
+    ) -> Result<ReturnStatus, Error> {
         let idx = self.graph.nodes[&package.id];
         let mut deps = vec![];
         for edge in self.graph.graph.edges_directed(idx, self.direction) {
-            if *edge.weight() != kind {
+            let weight: &DependencyKind = edge.weight();
+            if *weight != kind {
                 continue;
             }
 
@@ -209,7 +214,7 @@ impl<'a> TreePrinter<'a> {
         }
 
         if deps.is_empty() {
-            return parent_return_status;
+            return Ok(parent_return_status);
         }
 
         // ensure a consistent output ordering
@@ -227,10 +232,10 @@ impl<'a> TreePrinter<'a> {
         {
             for continues in &*self.levels_continue {
                 let c = if *continues { self.symbols.down } else { " " };
-                print!("{c}   ");
+                write!(self.writer, "{c}   ")?;
             }
 
-            println!("{name}");
+            writeln!(self.writer, "{name}")?;
         }
 
         let mut is_violation = false;
@@ -243,7 +248,7 @@ impl<'a> TreePrinter<'a> {
                 parent_return_status.clone()
             };
 
-            let result = self.print_package(Some(package), dependency, current_return_status);
+            let result = self.print_package(Some(package), dependency, current_return_status)?;
 
             self.levels_continue.pop();
             if let ReturnStatus::Violation = result {
@@ -251,17 +256,18 @@ impl<'a> TreePrinter<'a> {
             }
         }
 
-        parent_return_status.merge(is_violation)
+        Ok(parent_return_status.merge(is_violation))
     }
 }
 
 pub fn print(
+    writer: &mut impl Write,
     graph: &Graph,
     metadata: &Metadata,
     rules: DependencyRules,
     config: TreePrintConfig,
 ) -> Result<ReturnStatus, Error> {
-    let mut printer = TreePrinter::new(graph, &rules, config)?;
+    let mut printer = TreePrinter::new(writer, graph, &rules, config)?;
     let mut return_status = ReturnStatus::NoViolation;
 
     for member_id in &metadata.workspace_members {
@@ -270,7 +276,7 @@ pub fn print(
         })?;
         let root = &graph.graph[*idx];
 
-        let result = printer.print_root(root);
+        let result = printer.print_root(root)?;
 
         if let ReturnStatus::Violation = result {
             return_status = ReturnStatus::Violation
@@ -278,4 +284,66 @@ pub fn print(
     }
 
     Ok(return_status)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dependency_graph::{DependencyGraphBuildConfigs, build_dependency_graph};
+    use crate::dependency_rule::DependencyRules;
+    use crate::metadata::{CollectMetadataConfig, collect_metadata};
+    use anyhow::Result;
+
+    #[test]
+    fn test_print_no_violation_writes_output() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph =
+            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let rules =
+            DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+
+        let mut buf = Vec::new();
+        let result = print(
+            &mut buf,
+            &graph,
+            &metadata,
+            rules,
+            TreePrintConfig::default(),
+        )?;
+
+        assert!(!buf.is_empty());
+        assert!(matches!(result, ReturnStatus::NoViolation));
+        Ok(())
+    }
+
+    #[test]
+    fn test_print_with_violation_writes_output() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/tangled-clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph =
+            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let rules = DependencyRules::from_file(
+            "tests/demo_crates/tangled-clean-arch/dependency_rules.toml",
+        )?;
+
+        let mut buf = Vec::new();
+        let result = print(
+            &mut buf,
+            &graph,
+            &metadata,
+            rules,
+            TreePrintConfig::default(),
+        )?;
+
+        assert!(!buf.is_empty());
+        assert!(matches!(result, ReturnStatus::Violation));
+        Ok(())
+    }
 }
