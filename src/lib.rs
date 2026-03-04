@@ -16,6 +16,14 @@ impl ReturnStatus {
             ReturnStatus::Violation => ExitCode::FAILURE,
         }
     }
+
+    pub fn merge(self, has_violation: bool) -> Self {
+        if has_violation || matches!(self, Self::Violation) {
+            Self::Violation
+        } else {
+            Self::NoViolation
+        }
+    }
 }
 
 pub fn handler(
