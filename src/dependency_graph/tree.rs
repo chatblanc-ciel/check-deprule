@@ -276,15 +276,15 @@ fn print_dependencies<'a>(
         _ => unreachable!(),
     };
 
-    if let Prefix::Indent = prefix {
-        if let Some(name) = name {
-            for continues in &**levels_continue {
-                let c = if *continues { symbols.down } else { " " };
-                print!("{c}   ");
-            }
-
-            println!("{name}");
+    if let Prefix::Indent = prefix
+        && let Some(name) = name
+    {
+        for continues in &**levels_continue {
+            let c = if *continues { symbols.down } else { " " };
+            print!("{c}   ");
         }
+
+        println!("{name}");
     }
 
     let mut is_violation = false;
