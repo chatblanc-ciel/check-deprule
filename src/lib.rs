@@ -43,7 +43,12 @@ pub fn handler(
     let rules =
         dependency_rule::DependencyRule::from_file(rules_dir.join("dependency_rules.toml"))?;
 
-    dependency_graph::tree::print(&graph, &metadata, rules)
+    dependency_graph::tree::print(
+        &graph,
+        &metadata,
+        rules,
+        dependency_graph::tree::TreePrintConfig::default(),
+    )
 }
 
 #[cfg(test)]
