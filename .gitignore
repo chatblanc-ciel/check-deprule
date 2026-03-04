@@ -1,2 +1,5 @@
 target
-/.claude
+/.claude/*
+!/.claude/CLAUDE.md
+!/.claude/rules/
+!/.claude/skills/
