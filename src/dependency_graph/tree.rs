@@ -10,16 +10,6 @@ use petgraph::EdgeDirection;
 use petgraph::visit::EdgeRef;
 use std::collections::HashSet;
 
-// TODO: dead code回避を精査すること
-
-#[derive(Clone, Copy)]
-#[allow(dead_code)]
-enum Prefix {
-    None,
-    Indent,
-    Depth,
-}
-
 struct Symbols {
     down: &'static str,
     tee: &'static str,
@@ -34,37 +24,11 @@ static UTF8_SYMBOLS: Symbols = Symbols {
     right: "─",
 };
 
-#[allow(dead_code)]
-static ASCII_SYMBOLS: Symbols = Symbols {
-    down: "|",
-    tee: "|",
-    ell: "`",
-    right: "-",
-};
-
-pub enum Charset {
-    Utf8,
-    Ascii,
-}
-
-impl std::str::FromStr for Charset {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Charset, &'static str> {
-        match s {
-            "utf8" => Ok(Charset::Utf8),
-            "ascii" => Ok(Charset::Ascii),
-            _ => Err("invalid charset"),
-        }
-    }
-}
-
 struct TreePrinter<'a> {
     graph: &'a Graph,
     format: Pattern,
     direction: EdgeDirection,
     symbols: &'static Symbols,
-    prefix: Prefix,
     all: bool,
     rules: &'a DependencyRules,
     visited_deps: HashSet<&'a PackageId>,
@@ -78,7 +42,6 @@ impl<'a> TreePrinter<'a> {
             format: Pattern::new("{p}")?,
             direction: EdgeDirection::Outgoing,
             symbols: &UTF8_SYMBOLS,
-            prefix: Prefix::Indent,
             all: true,
             rules,
             visited_deps: HashSet::new(),
@@ -100,24 +63,18 @@ impl<'a> TreePrinter<'a> {
     ) -> ReturnStatus {
         let new = self.all || self.visited_deps.insert(&package.id);
 
-        match self.prefix {
-            Prefix::Depth => print!("{}", self.levels_continue.len()),
-            Prefix::Indent => {
-                if let Some((last_continues, rest)) = self.levels_continue.split_last() {
-                    for continues in rest {
-                        let c = if *continues { self.symbols.down } else { " " };
-                        print!("{c}   ");
-                    }
-
-                    let c = if *last_continues {
-                        self.symbols.tee
-                    } else {
-                        self.symbols.ell
-                    };
-                    print!("{0}{1}{1} ", c, self.symbols.right);
-                }
+        if let Some((last_continues, rest)) = self.levels_continue.split_last() {
+            for continues in rest {
+                let c = if *continues { self.symbols.down } else { " " };
+                print!("{c}   ");
             }
-            Prefix::None => {}
+
+            let c = if *last_continues {
+                self.symbols.tee
+            } else {
+                self.symbols.ell
+            };
+            print!("{0}{1}{1} ", c, self.symbols.right);
         }
 
         let star = if new { "" } else { " (*)" };
@@ -199,9 +156,7 @@ impl<'a> TreePrinter<'a> {
             _ => unreachable!(),
         };
 
-        if let Prefix::Indent = self.prefix
-            && let Some(name) = name
-        {
+        if let Some(name) = name {
             for continues in &*self.levels_continue {
                 let c = if *continues { self.symbols.down } else { " " };
                 print!("{c}   ");
