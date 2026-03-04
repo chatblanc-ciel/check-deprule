@@ -49,6 +49,21 @@ pub struct Display<'a> {
     package: &'a Package,
 }
 
+fn write_package_source(fmt: &mut fmt::Formatter<'_>, package: &Package) -> fmt::Result {
+    match &package.source {
+        Some(source) if !source.is_crates_io() => write!(fmt, " ({source})"),
+        // https://github.com/rust-lang/cargo/issues/7483
+        None => {
+            if let Some(parent) = package.manifest_path.parent() {
+                write!(fmt, " ({})", parent.as_str())
+            } else {
+                Ok(())
+            }
+        }
+        _ => Ok(()),
+    }
+}
+
 impl fmt::Display for Display<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         use colored::Colorize;
@@ -58,32 +73,12 @@ impl fmt::Display for Display<'_> {
                 Chunk::Raw(ref s) => fmt.write_str(s)?,
                 Chunk::Package => {
                     write!(fmt, "{} v{}", self.package.name, self.package.version)?;
-
-                    match &self.package.source {
-                        Some(source) if !source.is_crates_io() => write!(fmt, " ({source})")?,
-                        // https://github.com/rust-lang/cargo/issues/7483
-                        None => write!(
-                            fmt,
-                            " ({})",
-                            self.package.manifest_path.parent().unwrap().as_str()
-                        )?,
-                        _ => {}
-                    }
+                    write_package_source(fmt, self.package)?;
                 }
                 Chunk::ViolationPackage => {
                     let msg = format!("{} v{}", self.package.name, self.package.version);
                     write!(fmt, "{}", msg.red())?;
-
-                    match &self.package.source {
-                        Some(source) if !source.is_crates_io() => write!(fmt, " ({source})")?,
-                        // https://github.com/rust-lang/cargo/issues/7483
-                        None => write!(
-                            fmt,
-                            " ({})",
-                            self.package.manifest_path.parent().unwrap().as_str()
-                        )?,
-                        _ => {}
-                    }
+                    write_package_source(fmt, self.package)?;
                 }
                 Chunk::License => {
                     if let Some(ref license) = self.package.license {
