@@ -31,7 +31,9 @@ pub fn build_dependency_graph(
     metadata: Metadata,
     config: DependencyGraphBuildConfigs,
 ) -> Result<Graph, Error> {
-    let resolve = metadata.resolve.unwrap();
+    let resolve = metadata
+        .resolve
+        .ok_or_else(|| anyhow!("cargo metadata did not return dependency resolve information"))?;
 
     let mut graph = Graph {
         graph: StableGraph::new(),
