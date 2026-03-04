@@ -20,7 +20,7 @@ forbidden_dependencies = [
 ]
 ```
 
-この時`core`packageは`handler`をdenpendenciesに
+この時`core`packageは`handler`をdependenciesに
 もってはいけないというルールを定義している。
 
 ### command
@@ -42,7 +42,7 @@ check-deprule
 - ルール定義ファイルの指定
 - ルールをパッケージ名だけではなく、柔軟に記載できるようにする
 - clapを使ったCLIアプリケーション化
-- 違反パッケージの特定とdepenndency treeの出力を分ける
+- 違反パッケージの特定とdependency treeの出力を分ける
 
 # Special Thanks
 - [cargo-tree](https://github.com/sfackler/cargo-tree/tree/master)
