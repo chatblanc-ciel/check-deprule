@@ -187,11 +187,7 @@ fn print_package<'a>(
     };
 
     if !new {
-        return match (is_violation, parent_return_status) {
-            (true, _) => ReturnStatus::Violation,
-            (false, ReturnStatus::Violation) => ReturnStatus::Violation,
-            _ => ReturnStatus::NoViolation,
-        };
+        return parent_return_status.merge(is_violation);
     }
 
     for kind in &[
@@ -199,11 +195,7 @@ fn print_package<'a>(
         DependencyKind::Build,
         DependencyKind::Development,
     ] {
-        let current_return_status = match (is_violation, parent_return_status.clone()) {
-            (true, _) => ReturnStatus::Violation,
-            (false, ReturnStatus::Violation) => ReturnStatus::Violation,
-            _ => ReturnStatus::NoViolation,
-        };
+        let current_return_status = parent_return_status.clone().merge(is_violation);
 
         let result = print_dependencies(
             graph,
@@ -225,11 +217,7 @@ fn print_package<'a>(
         }
     }
 
-    match (is_violation, parent_return_status) {
-        (true, _) => ReturnStatus::Violation,
-        (false, ReturnStatus::Violation) => ReturnStatus::Violation,
-        _ => ReturnStatus::NoViolation,
-    }
+    parent_return_status.merge(is_violation)
 }
 
 // TODO: lint回避の精査
@@ -318,9 +306,5 @@ fn print_dependencies<'a>(
         }
     }
 
-    match (is_violation, parent_return_status) {
-        (true, _) => ReturnStatus::Violation,
-        (false, ReturnStatus::Violation) => ReturnStatus::Violation,
-        _ => ReturnStatus::NoViolation,
-    }
+    parent_return_status.merge(is_violation)
 }
