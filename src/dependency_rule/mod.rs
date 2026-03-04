@@ -22,7 +22,9 @@ impl DependencyRule {
             forbidden_dependencies,
         }
     }
+}
 
+impl DependencyRules {
     pub(crate) fn from_file<P>(path: P) -> Result<DependencyRules, Error>
     where
         P: AsRef<std::path::Path>,
@@ -57,7 +59,7 @@ mod tests {
             }],
         };
 
-        let actual = DependencyRule::from_file(path).unwrap();
+        let actual = DependencyRules::from_file(path).unwrap();
         assert_eq!(expected, actual);
     }
 }
