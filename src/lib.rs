@@ -23,7 +23,7 @@ pub fn handler(
     metadata_configs: metadata::CollectMetadataConfig,
 ) -> anyhow::Result<ReturnStatus> {
     let metadata = metadata::collect_metadata(metadata_configs.clone())?;
-    let graph = dependency_graph::build_dependency_graph(metadata, graph_build_configs)?;
+    let graph = dependency_graph::build_dependency_graph(metadata.clone(), graph_build_configs)?;
 
     if let Some(manifest_path) = metadata_configs.manifest_path {
         let manifest_path = Path::new(&manifest_path);
@@ -34,7 +34,7 @@ pub fn handler(
                 .join(Path::new("dependency_rules.toml")),
         )?;
 
-        dependency_graph::tree::print(&graph, manifest_path, rules)
+        dependency_graph::tree::print(&graph, &metadata, rules)
     } else {
         let current_dir = env::current_dir()?;
         let manifest_path = current_dir.join(Path::new("Cargo.toml"));
@@ -45,7 +45,7 @@ pub fn handler(
                 .join(Path::new("dependency_rules.toml")),
         )?;
 
-        dependency_graph::tree::print(&graph, manifest_path, rules)
+        dependency_graph::tree::print(&graph, &metadata, rules)
     }
 }
 

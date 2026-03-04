@@ -4,15 +4,11 @@ use crate::dependency_rule::DependencyRules;
 
 use super::Graph;
 use super::formatter::Pattern;
-use anyhow::{Context, Error, anyhow};
-use cargo::core::Workspace;
-use cargo::util::context::GlobalContext;
-use cargo_metadata::{DependencyKind, Package, PackageId};
+use anyhow::{Error, anyhow};
+use cargo_metadata::{DependencyKind, Metadata, Package, PackageId};
 use petgraph::EdgeDirection;
 use petgraph::visit::EdgeRef;
-use semver::Version;
 use std::collections::HashSet;
-use std::path::Path;
 
 // TODO: dead code回避を精査すること
 
@@ -63,23 +59,22 @@ impl std::str::FromStr for Charset {
     }
 }
 
-pub fn print<P: AsRef<Path>>(
+pub fn print(
     graph: &Graph,
-    manifest_path: P,
+    metadata: &Metadata,
     rules: DependencyRules,
 ) -> Result<ReturnStatus, Error> {
-    let glcx = GlobalContext::default()?;
-    let ws = Workspace::new(std::path::absolute(manifest_path)?.as_path(), &glcx)?;
-
     let format = Pattern::new("{p}")?;
     let direction = EdgeDirection::Outgoing;
     let symbols = &UTF8_SYMBOLS;
     let prefix = Prefix::Indent;
     let mut return_status = ReturnStatus::NoViolation;
 
-    for package in ws.members() {
-        let root = find_package(package.name().as_str(), graph)?;
-        let root = &graph.graph[graph.nodes[root]];
+    for member_id in &metadata.workspace_members {
+        let idx = graph.nodes.get(member_id).ok_or_else(|| {
+            anyhow!("workspace member `{member_id}` not found in dependency graph")
+        })?;
+        let root = &graph.graph[*idx];
 
         let result = print_tree(
             graph, root, &format, direction, symbols, prefix, true, &rules,
@@ -91,49 +86,6 @@ pub fn print<P: AsRef<Path>>(
     }
 
     Ok(return_status)
-}
-
-fn find_package<'a>(package: &str, graph: &'a Graph) -> Result<&'a PackageId, Error> {
-    let mut it = package.split(':');
-    let name = it.next().unwrap();
-    let version = it
-        .next()
-        .map(Version::parse)
-        .transpose()
-        .context("error parsing package version")?;
-
-    let mut candidates = vec![];
-    for idx in graph.graph.node_indices() {
-        let package = &graph.graph[idx];
-        if package.name != name {
-            continue;
-        }
-
-        if let Some(version) = &version {
-            if package.version != *version {
-                continue;
-            }
-        }
-
-        candidates.push(package);
-    }
-
-    if candidates.is_empty() {
-        Err(anyhow!("no crates found for package `{}`", package))
-    } else if candidates.len() > 1 {
-        let specs = candidates
-            .iter()
-            .map(|p| format!("{}:{}", p.name, p.version))
-            .collect::<Vec<_>>()
-            .join(", ");
-        Err(anyhow!(
-            "multiple crates found for package `{}`: {}",
-            package,
-            specs,
-        ))
-    } else {
-        Ok(&candidates[0].id)
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -190,7 +142,7 @@ fn print_package<'a>(
             if let Some((last_continues, rest)) = levels_continue.split_last() {
                 for continues in rest {
                     let c = if *continues { symbols.down } else { " " };
-                    print!("{}   ", c);
+                    print!("{c}   ");
                 }
 
                 let c = if *last_continues {
@@ -324,15 +276,15 @@ fn print_dependencies<'a>(
         _ => unreachable!(),
     };
 
-    if let Prefix::Indent = prefix {
-        if let Some(name) = name {
-            for continues in &**levels_continue {
-                let c = if *continues { symbols.down } else { " " };
-                print!("{}   ", c);
-            }
-
-            println!("{}", name);
+    if let Prefix::Indent = prefix
+        && let Some(name) = name
+    {
+        for continues in &**levels_continue {
+            let c = if *continues { symbols.down } else { " " };
+            print!("{c}   ");
         }
+
+        println!("{name}");
     }
 
     let mut is_violation = false;
