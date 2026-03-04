@@ -1,4 +1,4 @@
-use std::{env, path::Path, process::ExitCode};
+use std::{env, path::PathBuf, process::ExitCode};
 
 pub mod dependency_graph;
 pub mod dependency_rule;
@@ -25,28 +25,17 @@ pub fn handler(
     let metadata = metadata::collect_metadata(metadata_configs.clone())?;
     let graph = dependency_graph::build_dependency_graph(metadata.clone(), graph_build_configs)?;
 
-    if let Some(manifest_path) = metadata_configs.manifest_path {
-        let manifest_path = Path::new(&manifest_path);
-        let rules = dependency_rule::DependencyRule::from_file(
-            manifest_path
-                .parent()
-                .unwrap()
-                .join(Path::new("dependency_rules.toml")),
-        )?;
+    let manifest_path = match metadata_configs.manifest_path {
+        Some(path) => PathBuf::from(path),
+        None => env::current_dir()?.join("Cargo.toml"),
+    };
+    let rules_dir = manifest_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("manifest path has no parent directory"))?;
+    let rules =
+        dependency_rule::DependencyRule::from_file(rules_dir.join("dependency_rules.toml"))?;
 
-        dependency_graph::tree::print(&graph, &metadata, rules)
-    } else {
-        let current_dir = env::current_dir()?;
-        let manifest_path = current_dir.join(Path::new("Cargo.toml"));
-        let rules = dependency_rule::DependencyRule::from_file(
-            manifest_path
-                .parent()
-                .unwrap()
-                .join(Path::new("dependency_rules.toml")),
-        )?;
-
-        dependency_graph::tree::print(&graph, &metadata, rules)
-    }
+    dependency_graph::tree::print(&graph, &metadata, rules)
 }
 
 #[cfg(test)]
