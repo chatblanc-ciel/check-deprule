@@ -26,9 +26,9 @@ impl Pattern {
                 RawChunk::Argument("l") => Chunk::License,
                 RawChunk::Argument("r") => Chunk::Repository,
                 RawChunk::Argument(ref a) => {
-                    return Err(anyhow!("unsupported pattern `{}`", a));
+                    return Err(anyhow!("unsupported pattern `{a}`"));
                 }
-                RawChunk::Error(err) => return Err(anyhow!("{}", err)),
+                RawChunk::Error(err) => return Err(anyhow!("{err}")),
             };
             chunks.push(chunk);
         }
@@ -60,7 +60,7 @@ impl fmt::Display for Display<'_> {
                     write!(fmt, "{} v{}", self.package.name, self.package.version)?;
 
                     match &self.package.source {
-                        Some(source) if !source.is_crates_io() => write!(fmt, " ({})", source)?,
+                        Some(source) if !source.is_crates_io() => write!(fmt, " ({source})")?,
                         // https://github.com/rust-lang/cargo/issues/7483
                         None => write!(
                             fmt,
@@ -75,7 +75,7 @@ impl fmt::Display for Display<'_> {
                     write!(fmt, "{}", msg.red())?;
 
                     match &self.package.source {
-                        Some(source) if !source.is_crates_io() => write!(fmt, " ({})", source)?,
+                        Some(source) if !source.is_crates_io() => write!(fmt, " ({source})")?,
                         // https://github.com/rust-lang/cargo/issues/7483
                         None => write!(
                             fmt,
@@ -87,12 +87,12 @@ impl fmt::Display for Display<'_> {
                 }
                 Chunk::License => {
                     if let Some(ref license) = self.package.license {
-                        write!(fmt, "{}", license)?
+                        write!(fmt, "{license}")?
                     }
                 }
                 Chunk::Repository => {
                     if let Some(ref repository) = self.package.repository {
-                        write!(fmt, "{}", repository)?
+                        write!(fmt, "{repository}")?
                     }
                 }
             }

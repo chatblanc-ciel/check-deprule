@@ -59,7 +59,7 @@ pub fn build_dependency_graph(
             // https://github.com/rust-lang/cargo/issues/7752
             let mut kinds = vec![];
             for kind in dep.dep_kinds {
-                if !kinds.iter().any(|k| *k == kind.kind) {
+                if !kinds.contains(&kind.kind) {
                     kinds.push(kind.kind);
                 }
             }
