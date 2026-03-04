@@ -41,7 +41,7 @@ pub fn handler(
         .parent()
         .ok_or_else(|| anyhow::anyhow!("manifest path has no parent directory"))?;
     let rules =
-        dependency_rule::DependencyRule::from_file(rules_dir.join("dependency_rules.toml"))?;
+        dependency_rule::DependencyRules::from_file(rules_dir.join("dependency_rules.toml"))?;
 
     dependency_graph::tree::print(
         &graph,
