@@ -59,15 +59,185 @@ impl std::str::FromStr for Charset {
     }
 }
 
+struct TreePrinter<'a> {
+    graph: &'a Graph,
+    format: Pattern,
+    direction: EdgeDirection,
+    symbols: &'static Symbols,
+    prefix: Prefix,
+    all: bool,
+    rules: &'a DependencyRules,
+    visited_deps: HashSet<&'a PackageId>,
+    levels_continue: Vec<bool>,
+}
+
+impl<'a> TreePrinter<'a> {
+    fn new(graph: &'a Graph, rules: &'a DependencyRules) -> Result<Self, Error> {
+        Ok(Self {
+            graph,
+            format: Pattern::new("{p}")?,
+            direction: EdgeDirection::Outgoing,
+            symbols: &UTF8_SYMBOLS,
+            prefix: Prefix::Indent,
+            all: true,
+            rules,
+            visited_deps: HashSet::new(),
+            levels_continue: vec![],
+        })
+    }
+
+    fn print_root(&mut self, root: &'a Package) -> ReturnStatus {
+        self.visited_deps.clear();
+        self.levels_continue.clear();
+        self.print_package(None, root, ReturnStatus::NoViolation)
+    }
+
+    fn print_package(
+        &mut self,
+        parent_package: Option<&'a Package>,
+        package: &'a Package,
+        parent_return_status: ReturnStatus,
+    ) -> ReturnStatus {
+        let new = self.all || self.visited_deps.insert(&package.id);
+
+        match self.prefix {
+            Prefix::Depth => print!("{}", self.levels_continue.len()),
+            Prefix::Indent => {
+                if let Some((last_continues, rest)) = self.levels_continue.split_last() {
+                    for continues in rest {
+                        let c = if *continues { self.symbols.down } else { " " };
+                        print!("{c}   ");
+                    }
+
+                    let c = if *last_continues {
+                        self.symbols.tee
+                    } else {
+                        self.symbols.ell
+                    };
+                    print!("{0}{1}{1} ", c, self.symbols.right);
+                }
+            }
+            Prefix::None => {}
+        }
+
+        let star = if new { "" } else { " (*)" };
+        let mut is_violation = {
+            self.rules.rules.iter().any(|rule| {
+                if let Some(parent_package) = parent_package {
+                    rule.package
+                        == PackageId {
+                            repr: parent_package.name.clone(),
+                        }
+                        && rule.forbidden_dependencies.contains(&PackageId {
+                            repr: package.name.clone(),
+                        })
+                } else {
+                    false
+                }
+            })
+        };
+        match is_violation {
+            true => {
+                let f = Pattern(vec![Chunk::ViolationPackage]);
+                println!("{}{}", f.display(package), star);
+            }
+            false => println!("{}{}", self.format.display(package), star),
+        };
+
+        if !new {
+            return parent_return_status.merge(is_violation);
+        }
+
+        for kind in &[
+            DependencyKind::Normal,
+            DependencyKind::Build,
+            DependencyKind::Development,
+        ] {
+            let current_return_status = parent_return_status.clone().merge(is_violation);
+
+            let result = self.print_dependencies(package, *kind, current_return_status);
+
+            if let ReturnStatus::Violation = result {
+                is_violation = true;
+            }
+        }
+
+        parent_return_status.merge(is_violation)
+    }
+
+    fn print_dependencies(
+        &mut self,
+        package: &'a Package,
+        kind: DependencyKind,
+        parent_return_status: ReturnStatus,
+    ) -> ReturnStatus {
+        let idx = self.graph.nodes[&package.id];
+        let mut deps = vec![];
+        for edge in self.graph.graph.edges_directed(idx, self.direction) {
+            if *edge.weight() != kind {
+                continue;
+            }
+
+            let dep = match self.direction {
+                EdgeDirection::Incoming => &self.graph.graph[edge.source()],
+                EdgeDirection::Outgoing => &self.graph.graph[edge.target()],
+            };
+            deps.push(dep);
+        }
+
+        if deps.is_empty() {
+            return parent_return_status;
+        }
+
+        // ensure a consistent output ordering
+        deps.sort_by_key(|p| &p.id);
+
+        let name = match kind {
+            DependencyKind::Normal => None,
+            DependencyKind::Build => Some("[build-dependencies]"),
+            DependencyKind::Development => Some("[dev-dependencies]"),
+            _ => unreachable!(),
+        };
+
+        if let Prefix::Indent = self.prefix
+            && let Some(name) = name
+        {
+            for continues in &*self.levels_continue {
+                let c = if *continues { self.symbols.down } else { " " };
+                print!("{c}   ");
+            }
+
+            println!("{name}");
+        }
+
+        let mut is_violation = false;
+        let mut it = deps.iter().peekable();
+        while let Some(dependency) = it.next() {
+            self.levels_continue.push(it.peek().is_some());
+            let current_return_status = if is_violation {
+                ReturnStatus::Violation
+            } else {
+                parent_return_status.clone()
+            };
+
+            let result = self.print_package(Some(package), dependency, current_return_status);
+
+            self.levels_continue.pop();
+            if let ReturnStatus::Violation = result {
+                is_violation = true;
+            }
+        }
+
+        parent_return_status.merge(is_violation)
+    }
+}
+
 pub fn print(
     graph: &Graph,
     metadata: &Metadata,
     rules: DependencyRules,
 ) -> Result<ReturnStatus, Error> {
-    let format = Pattern::new("{p}")?;
-    let direction = EdgeDirection::Outgoing;
-    let symbols = &UTF8_SYMBOLS;
-    let prefix = Prefix::Indent;
+    let mut printer = TreePrinter::new(graph, &rules)?;
     let mut return_status = ReturnStatus::NoViolation;
 
     for member_id in &metadata.workspace_members {
@@ -76,9 +246,7 @@ pub fn print(
         })?;
         let root = &graph.graph[*idx];
 
-        let result = print_tree(
-            graph, root, &format, direction, symbols, prefix, true, &rules,
-        );
+        let result = printer.print_root(root);
 
         if let ReturnStatus::Violation = result {
             return_status = ReturnStatus::Violation
@@ -86,225 +254,4 @@ pub fn print(
     }
 
     Ok(return_status)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn print_tree<'a>(
-    graph: &'a Graph,
-    root: &'a Package,
-    format: &Pattern,
-    direction: EdgeDirection,
-    symbols: &Symbols,
-    prefix: Prefix,
-    all: bool,
-    rules: &DependencyRules,
-) -> ReturnStatus {
-    let mut visited_deps = HashSet::new();
-    let mut levels_continue = vec![];
-
-    print_package(
-        graph,
-        None,
-        root,
-        format,
-        direction,
-        symbols,
-        prefix,
-        all,
-        &mut visited_deps,
-        &mut levels_continue,
-        rules,
-        ReturnStatus::NoViolation,
-    )
-}
-
-// TODO: lint回避の精査
-#[allow(clippy::too_many_arguments)]
-fn print_package<'a>(
-    graph: &'a Graph,
-    parent_package: Option<&'a Package>,
-    package: &'a Package,
-    format: &Pattern,
-    direction: EdgeDirection,
-    symbols: &Symbols,
-    prefix: Prefix,
-    all: bool,
-    visited_deps: &mut HashSet<&'a PackageId>,
-    levels_continue: &mut Vec<bool>,
-    rules: &DependencyRules,
-    parent_return_status: ReturnStatus,
-) -> ReturnStatus {
-    let new = all || visited_deps.insert(&package.id);
-
-    match prefix {
-        Prefix::Depth => print!("{}", levels_continue.len()),
-        Prefix::Indent => {
-            if let Some((last_continues, rest)) = levels_continue.split_last() {
-                for continues in rest {
-                    let c = if *continues { symbols.down } else { " " };
-                    print!("{c}   ");
-                }
-
-                let c = if *last_continues {
-                    symbols.tee
-                } else {
-                    symbols.ell
-                };
-                print!("{0}{1}{1} ", c, symbols.right);
-            }
-        }
-        Prefix::None => {}
-    }
-
-    let star = if new { "" } else { " (*)" };
-    let mut is_violation = {
-        rules.rules.iter().any(|rule| {
-            // println!("\npackage: {}\nid: {}", rule.package, package.id);
-            // println!("rule.package: {}", rule.package);
-            // println!("parent_package: {:?}", parent_package);
-            // println!("forbidden_dependencies: {:?}", rule.forbidden_dependencies);
-            if let Some(parent_package) = parent_package {
-                // println!("parent match: {}", rule.package == PackageId { repr: parent_package.name.clone() });
-                // println!("forbidden_dependencies match: {}", rule.forbidden_dependencies.contains(&PackageId { repr: package.name.clone() }));
-                rule.package
-                    == PackageId {
-                        repr: parent_package.name.clone(),
-                    }
-                    && rule.forbidden_dependencies.contains(&PackageId {
-                        repr: package.name.clone(),
-                    })
-            } else {
-                false
-            }
-        })
-    };
-    match is_violation {
-        true => {
-            let f = Pattern(vec![Chunk::ViolationPackage]);
-            println!("{}{}", f.display(package), star);
-        }
-        false => println!("{}{}", format.display(package), star),
-    };
-
-    if !new {
-        return parent_return_status.merge(is_violation);
-    }
-
-    for kind in &[
-        DependencyKind::Normal,
-        DependencyKind::Build,
-        DependencyKind::Development,
-    ] {
-        let current_return_status = parent_return_status.clone().merge(is_violation);
-
-        let result = print_dependencies(
-            graph,
-            package,
-            format,
-            direction,
-            symbols,
-            prefix,
-            all,
-            visited_deps,
-            levels_continue,
-            *kind,
-            rules,
-            current_return_status,
-        );
-
-        if let ReturnStatus::Violation = result {
-            is_violation = true;
-        }
-    }
-
-    parent_return_status.merge(is_violation)
-}
-
-// TODO: lint回避の精査
-#[allow(clippy::too_many_arguments)]
-fn print_dependencies<'a>(
-    graph: &'a Graph,
-    package: &'a Package,
-    format: &Pattern,
-    direction: EdgeDirection,
-    symbols: &Symbols,
-    prefix: Prefix,
-    all: bool,
-    visited_deps: &mut HashSet<&'a PackageId>,
-    levels_continue: &mut Vec<bool>,
-    kind: DependencyKind,
-    rules: &DependencyRules,
-    parent_return_status: ReturnStatus,
-) -> ReturnStatus {
-    let idx = graph.nodes[&package.id];
-    let mut deps = vec![];
-    for edge in graph.graph.edges_directed(idx, direction) {
-        if *edge.weight() != kind {
-            continue;
-        }
-
-        let dep = match direction {
-            EdgeDirection::Incoming => &graph.graph[edge.source()],
-            EdgeDirection::Outgoing => &graph.graph[edge.target()],
-        };
-        deps.push(dep);
-    }
-
-    if deps.is_empty() {
-        return parent_return_status;
-    }
-
-    // ensure a consistent output ordering
-    deps.sort_by_key(|p| &p.id);
-
-    let name = match kind {
-        DependencyKind::Normal => None,
-        DependencyKind::Build => Some("[build-dependencies]"),
-        DependencyKind::Development => Some("[dev-dependencies]"),
-        _ => unreachable!(),
-    };
-
-    if let Prefix::Indent = prefix
-        && let Some(name) = name
-    {
-        for continues in &**levels_continue {
-            let c = if *continues { symbols.down } else { " " };
-            print!("{c}   ");
-        }
-
-        println!("{name}");
-    }
-
-    let mut is_violation = false;
-    let mut it = deps.iter().peekable();
-    while let Some(dependency) = it.next() {
-        levels_continue.push(it.peek().is_some());
-        let current_return_status = if is_violation {
-            ReturnStatus::Violation
-        } else {
-            parent_return_status.clone()
-        };
-
-        let result = print_package(
-            graph,
-            Some(package),
-            dependency,
-            format,
-            direction,
-            symbols,
-            prefix,
-            all,
-            visited_deps,
-            levels_continue,
-            rules,
-            current_return_status,
-        );
-
-        levels_continue.pop();
-        if let ReturnStatus::Violation = result {
-            is_violation = true;
-        }
-    }
-
-    parent_return_status.merge(is_violation)
 }
