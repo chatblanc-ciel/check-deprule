@@ -10,11 +10,8 @@ use petgraph::EdgeDirection;
 use petgraph::visit::EdgeRef;
 use std::collections::HashSet;
 
-// TODO: dead code回避を精査すること
-
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
-enum Prefix {
+pub enum Prefix {
     None,
     Indent,
     Depth,
@@ -34,7 +31,6 @@ static UTF8_SYMBOLS: Symbols = Symbols {
     right: "─",
 };
 
-#[allow(dead_code)]
 static ASCII_SYMBOLS: Symbols = Symbols {
     down: "|",
     tee: "|",
@@ -47,6 +43,15 @@ pub enum Charset {
     Ascii,
 }
 
+impl Charset {
+    fn symbols(&self) -> &'static Symbols {
+        match self {
+            Charset::Utf8 => &UTF8_SYMBOLS,
+            Charset::Ascii => &ASCII_SYMBOLS,
+        }
+    }
+}
+
 impl std::str::FromStr for Charset {
     type Err = &'static str;
 
@@ -55,6 +60,20 @@ impl std::str::FromStr for Charset {
             "utf8" => Ok(Charset::Utf8),
             "ascii" => Ok(Charset::Ascii),
             _ => Err("invalid charset"),
+        }
+    }
+}
+
+pub struct TreePrintConfig {
+    pub charset: Charset,
+    pub prefix: Prefix,
+}
+
+impl Default for TreePrintConfig {
+    fn default() -> Self {
+        Self {
+            charset: Charset::Utf8,
+            prefix: Prefix::Indent,
         }
     }
 }
@@ -72,13 +91,17 @@ struct TreePrinter<'a> {
 }
 
 impl<'a> TreePrinter<'a> {
-    fn new(graph: &'a Graph, rules: &'a DependencyRules) -> Result<Self, Error> {
+    fn new(
+        graph: &'a Graph,
+        rules: &'a DependencyRules,
+        config: TreePrintConfig,
+    ) -> Result<Self, Error> {
         Ok(Self {
             graph,
             format: Pattern::new("{p}")?,
             direction: EdgeDirection::Outgoing,
-            symbols: &UTF8_SYMBOLS,
-            prefix: Prefix::Indent,
+            symbols: config.charset.symbols(),
+            prefix: config.prefix,
             all: true,
             rules,
             visited_deps: HashSet::new(),
@@ -236,8 +259,9 @@ pub fn print(
     graph: &Graph,
     metadata: &Metadata,
     rules: DependencyRules,
+    config: TreePrintConfig,
 ) -> Result<ReturnStatus, Error> {
-    let mut printer = TreePrinter::new(graph, &rules)?;
+    let mut printer = TreePrinter::new(graph, &rules, config)?;
     let mut return_status = ReturnStatus::NoViolation;
 
     for member_id in &metadata.workspace_members {
