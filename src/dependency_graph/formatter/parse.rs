@@ -95,3 +95,83 @@ impl<'a> Iterator for Parser<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_empty_input() {
+        let chunks: Vec<_> = Parser::new("").collect();
+        assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn test_plain_text() {
+        let chunks: Vec<_> = Parser::new("hello world").collect();
+        assert_eq!(chunks.len(), 1);
+        assert!(matches!(chunks[0], RawChunk::Text("hello world")));
+    }
+
+    #[test]
+    fn test_single_argument() {
+        let chunks: Vec<_> = Parser::new("{p}").collect();
+        assert_eq!(chunks.len(), 1);
+        assert!(matches!(chunks[0], RawChunk::Argument("p")));
+    }
+
+    #[test]
+    fn test_multiple_arguments() {
+        let chunks: Vec<_> = Parser::new("{p} {l} {r}").collect();
+        assert_eq!(chunks.len(), 5);
+        assert!(matches!(chunks[0], RawChunk::Argument("p")));
+        assert!(matches!(chunks[1], RawChunk::Text(" ")));
+        assert!(matches!(chunks[2], RawChunk::Argument("l")));
+        assert!(matches!(chunks[3], RawChunk::Text(" ")));
+        assert!(matches!(chunks[4], RawChunk::Argument("r")));
+    }
+
+    #[test]
+    fn test_escaped_brace() {
+        let chunks: Vec<_> = Parser::new("{{").collect();
+        assert_eq!(chunks.len(), 1);
+        assert!(matches!(chunks[0], RawChunk::Text("{")));
+    }
+
+    #[test]
+    fn test_text_with_argument() {
+        let chunks: Vec<_> = Parser::new("name: {p}").collect();
+        assert_eq!(chunks.len(), 2);
+        assert!(matches!(chunks[0], RawChunk::Text("name: ")));
+        assert!(matches!(chunks[1], RawChunk::Argument("p")));
+    }
+
+    #[test]
+    fn test_argument_with_trailing_text() {
+        let chunks: Vec<_> = Parser::new("{p} end").collect();
+        assert_eq!(chunks.len(), 2);
+        assert!(matches!(chunks[0], RawChunk::Argument("p")));
+        assert!(matches!(chunks[1], RawChunk::Text(" end")));
+    }
+
+    #[test]
+    fn test_missing_closing_brace() {
+        let chunks: Vec<_> = Parser::new("{p").collect();
+        assert_eq!(chunks.len(), 1);
+        assert!(matches!(chunks[0], RawChunk::Error("expected '}'")));
+    }
+
+    #[test]
+    fn test_unexpected_closing_brace() {
+        let chunks: Vec<_> = Parser::new("}").collect();
+        assert_eq!(chunks.len(), 1);
+        assert!(matches!(chunks[0], RawChunk::Error("unexpected '}'")));
+    }
+
+    #[test]
+    fn test_empty_argument() {
+        let chunks: Vec<_> = Parser::new("{}").collect();
+        assert_eq!(chunks.len(), 1);
+        assert!(matches!(chunks[0], RawChunk::Argument("")));
+    }
+}

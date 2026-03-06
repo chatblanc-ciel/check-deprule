@@ -95,3 +95,73 @@ pub fn build_dependency_graph(
 
     Ok(graph)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metadata::{CollectMetadataConfig, collect_metadata};
+    use anyhow::Result;
+
+    fn clean_arch_metadata() -> Result<Metadata> {
+        collect_metadata(CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        })
+    }
+
+    #[test]
+    fn test_build_dependency_graph_creates_nodes() -> Result<()> {
+        let metadata = clean_arch_metadata()?;
+        let workspace_count = metadata.workspace_members.len();
+        let graph = build_dependency_graph(metadata, DependencyGraphBuildConfigs::default())?;
+
+        assert!(graph.nodes.len() >= workspace_count);
+        Ok(())
+    }
+
+    #[test]
+    fn test_build_dependency_graph_workspace_members_present() -> Result<()> {
+        let metadata = clean_arch_metadata()?;
+        let member_ids: Vec<_> = metadata.workspace_members.clone();
+        let graph = build_dependency_graph(metadata, DependencyGraphBuildConfigs::default())?;
+
+        for id in &member_ids {
+            assert!(
+                graph.nodes.contains_key(id),
+                "missing workspace member: {id}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_build_dependency_graph_no_dev_dependencies() -> Result<()> {
+        let metadata = clean_arch_metadata()?;
+        let config_with_dev = DependencyGraphBuildConfigs::new(false);
+        let graph_with_dev = build_dependency_graph(metadata.clone(), config_with_dev)?;
+
+        let config_no_dev = DependencyGraphBuildConfigs::new(true);
+        let graph_no_dev = build_dependency_graph(metadata, config_no_dev)?;
+
+        assert!(
+            graph_no_dev.graph.edge_count() <= graph_with_dev.graph.edge_count(),
+            "no_dev_dependencies should result in equal or fewer edges"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_dependency_graph_build_configs_default() {
+        let config = DependencyGraphBuildConfigs::default();
+        assert!(!config.no_dev_dependencies);
+    }
+
+    #[test]
+    fn test_dependency_graph_build_configs_new() {
+        let config = DependencyGraphBuildConfigs::new(true);
+        assert!(config.no_dev_dependencies);
+
+        let config = DependencyGraphBuildConfigs::new(false);
+        assert!(!config.no_dev_dependencies);
+    }
+}
