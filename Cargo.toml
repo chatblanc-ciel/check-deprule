@@ -2,16 +2,18 @@
 name = "check-deprule"
 version = "0.0.3"
 edition = "2024"
+rust-version = "1.85.0"
 authors = ["chatblanc-ciel <73688885+chatblanc-ciel@users.noreply.github.com>"]
 description = "linter for dependency constraints in Cargo.toml"
-keywords = ["cargo", "linter", "dependency", "cli"]
+keywords = ["cargo", "linter", "dependency", "cli", "workspace"]
+categories = ["development-tools", "command-line-utilities"]
 license = "MIT OR Apache-2.0"
 
 readme = "README.md"
 repository = "https://github.com/chatblanc-ciel/check-deprule"
 homepage = "https://github.com/chatblanc-ciel/check-deprule"
 documentation = "https://docs.rs/check-deprule"
-
+exclude = [".github/", ".claude/", "tests/demo_crates/*/target/", "Makefile.toml", "docs/"]
 
 [dependencies]
 anyhow = "1.0.97"
