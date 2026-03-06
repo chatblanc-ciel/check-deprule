@@ -1,6 +1,5 @@
-use crate::ReturnStatus;
 use crate::dependency_graph::formatter::Chunk;
-use crate::dependency_rule::DependencyRules;
+use crate::dependency_graph::violation::ViolationReport;
 
 use super::Graph;
 use super::formatter::Pattern;
@@ -88,7 +87,7 @@ struct TreePrinter<'a, W: Write> {
     symbols: &'static Symbols,
     prefix: Prefix,
     all: bool,
-    rules: &'a DependencyRules,
+    report: &'a ViolationReport,
     visited_deps: HashSet<&'a PackageId>,
     levels_continue: Vec<bool>,
 }
@@ -97,7 +96,7 @@ impl<'a, W: Write> TreePrinter<'a, W> {
     fn new(
         writer: W,
         graph: &'a Graph,
-        rules: &'a DependencyRules,
+        report: &'a ViolationReport,
         config: TreePrintConfig,
     ) -> Result<Self, Error> {
         Ok(Self {
@@ -108,24 +107,23 @@ impl<'a, W: Write> TreePrinter<'a, W> {
             symbols: config.charset.symbols(),
             prefix: config.prefix,
             all: true,
-            rules,
+            report,
             visited_deps: HashSet::new(),
             levels_continue: vec![],
         })
     }
 
-    fn print_root(&mut self, root: &'a Package) -> Result<ReturnStatus, Error> {
+    fn print_root(&mut self, root: &'a Package) -> Result<(), Error> {
         self.visited_deps.clear();
         self.levels_continue.clear();
-        self.print_package(None, root, ReturnStatus::NoViolation)
+        self.print_package(None, root)
     }
 
     fn print_package(
         &mut self,
         parent_package: Option<&'a Package>,
         package: &'a Package,
-        parent_return_status: ReturnStatus,
-    ) -> Result<ReturnStatus, Error> {
+    ) -> Result<(), Error> {
         let new = self.all || self.visited_deps.insert(&package.id);
 
         match self.prefix {
@@ -149,20 +147,10 @@ impl<'a, W: Write> TreePrinter<'a, W> {
         }
 
         let star = if new { "" } else { " (*)" };
-        let mut is_violation = {
-            self.rules.rules.iter().any(|rule| {
-                if let Some(parent_package) = parent_package {
-                    rule.package
-                        == PackageId {
-                            repr: parent_package.name.clone(),
-                        }
-                        && rule.forbidden_dependencies.contains(&PackageId {
-                            repr: package.name.clone(),
-                        })
-                } else {
-                    false
-                }
-            })
+        let is_violation = if let Some(parent) = parent_package {
+            self.report.is_violation(&parent.name, &package.name)
+        } else {
+            false
         };
         match is_violation {
             true => {
@@ -173,7 +161,7 @@ impl<'a, W: Write> TreePrinter<'a, W> {
         };
 
         if !new {
-            return Ok(parent_return_status.merge(is_violation));
+            return Ok(());
         }
 
         for kind in &[
@@ -181,24 +169,17 @@ impl<'a, W: Write> TreePrinter<'a, W> {
             DependencyKind::Build,
             DependencyKind::Development,
         ] {
-            let current_return_status = parent_return_status.clone().merge(is_violation);
-
-            let result = self.print_dependencies(package, *kind, current_return_status)?;
-
-            if let ReturnStatus::Violation = result {
-                is_violation = true;
-            }
+            self.print_dependencies(package, *kind)?;
         }
 
-        Ok(parent_return_status.merge(is_violation))
+        Ok(())
     }
 
     fn print_dependencies(
         &mut self,
         package: &'a Package,
         kind: DependencyKind,
-        parent_return_status: ReturnStatus,
-    ) -> Result<ReturnStatus, Error> {
+    ) -> Result<(), Error> {
         let idx = self.graph.nodes[&package.id];
         let mut deps = vec![];
         for edge in self.graph.graph.edges_directed(idx, self.direction) {
@@ -215,7 +196,7 @@ impl<'a, W: Write> TreePrinter<'a, W> {
         }
 
         if deps.is_empty() {
-            return Ok(parent_return_status);
+            return Ok(());
         }
 
         // ensure a consistent output ordering
@@ -239,25 +220,14 @@ impl<'a, W: Write> TreePrinter<'a, W> {
             writeln!(self.writer, "{name}")?;
         }
 
-        let mut is_violation = false;
         let mut it = deps.iter().peekable();
         while let Some(dependency) = it.next() {
             self.levels_continue.push(it.peek().is_some());
-            let current_return_status = if is_violation {
-                ReturnStatus::Violation
-            } else {
-                parent_return_status.clone()
-            };
-
-            let result = self.print_package(Some(package), dependency, current_return_status)?;
-
+            self.print_package(Some(package), dependency)?;
             self.levels_continue.pop();
-            if let ReturnStatus::Violation = result {
-                is_violation = true;
-            }
         }
 
-        Ok(parent_return_status.merge(is_violation))
+        Ok(())
     }
 }
 
@@ -265,11 +235,10 @@ pub fn print(
     writer: &mut impl Write,
     graph: &Graph,
     metadata: &Metadata,
-    rules: DependencyRules,
+    report: &ViolationReport,
     config: TreePrintConfig,
-) -> Result<ReturnStatus, Error> {
-    let mut printer = TreePrinter::new(writer, graph, &rules, config)?;
-    let mut return_status = ReturnStatus::NoViolation;
+) -> Result<(), Error> {
+    let mut printer = TreePrinter::new(writer, graph, report, config)?;
 
     for member_id in &metadata.workspace_members {
         let idx = graph.nodes.get(member_id).ok_or_else(|| {
@@ -277,19 +246,16 @@ pub fn print(
         })?;
         let root = &graph.graph[*idx];
 
-        let result = printer.print_root(root)?;
-
-        if let ReturnStatus::Violation = result {
-            return_status = ReturnStatus::Violation
-        }
+        printer.print_root(root)?;
     }
 
-    Ok(return_status)
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dependency_graph::violation::check_violations;
     use crate::dependency_graph::{DependencyGraphBuildConfigs, build_dependency_graph};
     use crate::dependency_rule::DependencyRules;
     use crate::metadata::{CollectMetadataConfig, collect_metadata};
@@ -306,18 +272,19 @@ mod tests {
             build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
         let rules =
             DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+        let report = check_violations(&graph, &rules);
 
         let mut buf = Vec::new();
-        let result = print(
+        print(
             &mut buf,
             &graph,
             &metadata,
-            rules,
+            &report,
             TreePrintConfig::default(),
         )?;
 
         assert!(!buf.is_empty());
-        assert!(matches!(result, ReturnStatus::NoViolation));
+        assert!(!report.has_violations());
         Ok(())
     }
 
@@ -333,18 +300,19 @@ mod tests {
         let rules = DependencyRules::from_file(
             "tests/demo_crates/tangled-clean-arch/dependency_rules.toml",
         )?;
+        let report = check_violations(&graph, &rules);
 
         let mut buf = Vec::new();
-        let result = print(
+        print(
             &mut buf,
             &graph,
             &metadata,
-            rules,
+            &report,
             TreePrintConfig::default(),
         )?;
 
         assert!(!buf.is_empty());
-        assert!(matches!(result, ReturnStatus::Violation));
+        assert!(report.has_violations());
         Ok(())
     }
 
@@ -359,13 +327,14 @@ mod tests {
             build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
         let rules =
             DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+        let report = check_violations(&graph, &rules);
 
         let mut buf = Vec::new();
         print(
             &mut buf,
             &graph,
             &metadata,
-            rules,
+            &report,
             TreePrintConfig::default(),
         )?;
 
@@ -386,13 +355,14 @@ mod tests {
             build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
         let rules =
             DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+        let report = check_violations(&graph, &rules);
 
         let mut buf = Vec::new();
         let tree_config = TreePrintConfig {
             charset: Charset::Ascii,
             prefix: Prefix::Indent,
         };
-        print(&mut buf, &graph, &metadata, rules, tree_config)?;
+        print(&mut buf, &graph, &metadata, &report, tree_config)?;
 
         let output = String::from_utf8(buf)?;
         assert!(output.contains("|--"), "ASCII tree should contain |--");
@@ -410,13 +380,14 @@ mod tests {
             build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
         let rules =
             DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+        let report = check_violations(&graph, &rules);
 
         let mut buf = Vec::new();
         let tree_config = TreePrintConfig {
             charset: Charset::Utf8,
             prefix: Prefix::Depth,
         };
-        print(&mut buf, &graph, &metadata, rules, tree_config)?;
+        print(&mut buf, &graph, &metadata, &report, tree_config)?;
 
         let output = String::from_utf8(buf)?;
         assert!(
@@ -437,13 +408,14 @@ mod tests {
             build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
         let rules =
             DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+        let report = check_violations(&graph, &rules);
 
         let mut buf = Vec::new();
         let tree_config = TreePrintConfig {
             charset: Charset::Utf8,
             prefix: Prefix::None,
         };
-        print(&mut buf, &graph, &metadata, rules, tree_config)?;
+        print(&mut buf, &graph, &metadata, &report, tree_config)?;
 
         let output = String::from_utf8(buf)?;
         assert!(
