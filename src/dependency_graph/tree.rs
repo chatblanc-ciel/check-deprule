@@ -11,7 +11,7 @@ use petgraph::visit::EdgeRef;
 use std::collections::HashSet;
 use std::io::Write;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, clap::ValueEnum)]
 pub enum Prefix {
     None,
     Indent,
@@ -39,6 +39,7 @@ static ASCII_SYMBOLS: Symbols = Symbols {
     right: "-",
 };
 
+#[derive(Clone, Copy, clap::ValueEnum)]
 pub enum Charset {
     Utf8,
     Ascii,
