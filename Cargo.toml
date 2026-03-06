@@ -7,11 +7,10 @@ description = "linter for dependency constraints in Cargo.toml"
 keywords = ["cargo", "linter", "dependency", "cli"]
 license = "MIT OR Apache-2.0"
 
-# TODO: write later
 readme = "README.md"
-# repository = ""
-# homepage = ""
-# documentation = ""
+repository = "https://github.com/chatblanc-ciel/check-deprule"
+homepage = "https://github.com/chatblanc-ciel/check-deprule"
+documentation = "https://docs.rs/check-deprule"
 
 
 [dependencies]
