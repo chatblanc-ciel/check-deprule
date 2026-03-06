@@ -27,6 +27,7 @@ impl DependencyGraphBuildConfigs {
     }
 }
 
+#[tracing::instrument(skip(metadata), fields(packages = metadata.packages.len()))]
 pub fn build_dependency_graph(
     metadata: Metadata,
     config: DependencyGraphBuildConfigs,

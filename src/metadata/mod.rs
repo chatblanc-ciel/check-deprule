@@ -40,6 +40,7 @@ impl Default for CollectMetadataConfig {
     }
 }
 
+#[tracing::instrument(skip_all, fields(manifest_path = ?config.manifest_path))]
 pub fn collect_metadata(config: CollectMetadataConfig) -> Result<Metadata, Error> {
     let cargo = env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo"));
 

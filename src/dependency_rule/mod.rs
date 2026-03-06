@@ -25,6 +25,7 @@ impl DependencyRule {
 }
 
 impl DependencyRules {
+    #[tracing::instrument(skip_all, fields(path = ?path.as_ref()))]
     pub(crate) fn from_file<P>(path: P) -> Result<DependencyRules, Error>
     where
         P: AsRef<std::path::Path>,

@@ -11,6 +11,7 @@ use check_deprule::{
     metadata::CollectMetadataConfig,
 };
 use clap::Parser;
+use tracing::info;
 
 #[derive(Parser)]
 #[command(
@@ -37,10 +38,27 @@ struct Cli {
     /// Tree prefix style
     #[arg(long, value_enum, default_value_t = Prefix::Indent)]
     prefix: Prefix,
+
+    /// Log level (overridden by RUST_LOG env var)
+    #[arg(long, default_value = "warn")]
+    log_level: tracing::Level,
 }
 
 fn main() -> Result<ExitCode> {
     let cli = Cli::parse();
+
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(cli.log_level.as_str())),
+        )
+        .init();
+
+    info!(
+        manifest_path = ?cli.manifest_path,
+        no_dev_dependencies = cli.no_dev_dependencies,
+        "starting check-deprule"
+    );
 
     let config = HandlerConfig {
         graph_build_configs: DependencyGraphBuildConfigs::new(cli.no_dev_dependencies),

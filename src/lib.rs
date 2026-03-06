@@ -34,7 +34,10 @@ pub struct HandlerConfig {
 }
 
 pub fn handler(config: HandlerConfig) -> anyhow::Result<ReturnStatus> {
+    tracing::info!("collecting cargo metadata");
     let metadata = metadata::collect_metadata(config.metadata_configs.clone())?;
+
+    tracing::info!("building dependency graph");
     let graph =
         dependency_graph::build_dependency_graph(metadata.clone(), config.graph_build_configs)?;
 
@@ -51,8 +54,10 @@ pub fn handler(config: HandlerConfig) -> anyhow::Result<ReturnStatus> {
             rules_dir.join("dependency_rules.toml")
         }
     };
+    tracing::info!(path = ?rules_path, "loading dependency rules");
     let rules = dependency_rule::DependencyRules::from_file(rules_path)?;
 
+    tracing::info!("printing dependency tree");
     dependency_graph::tree::print(
         &mut std::io::stdout(),
         &graph,
