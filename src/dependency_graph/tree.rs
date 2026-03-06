@@ -346,4 +346,127 @@ mod tests {
         assert!(matches!(result, ReturnStatus::Violation));
         Ok(())
     }
+
+    #[test]
+    fn test_print_output_contains_workspace_members() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph =
+            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let rules =
+            DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+
+        let mut buf = Vec::new();
+        print(
+            &mut buf,
+            &graph,
+            &metadata,
+            rules,
+            TreePrintConfig::default(),
+        )?;
+
+        let output = String::from_utf8(buf)?;
+        assert!(output.contains("ca-core"));
+        assert!(output.contains("ca-interactor"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_print_ascii_charset() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph =
+            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let rules =
+            DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+
+        let mut buf = Vec::new();
+        let tree_config = TreePrintConfig {
+            charset: Charset::Ascii,
+            prefix: Prefix::Indent,
+        };
+        print(&mut buf, &graph, &metadata, rules, tree_config)?;
+
+        let output = String::from_utf8(buf)?;
+        assert!(output.contains("|--"), "ASCII tree should contain |--");
+        Ok(())
+    }
+
+    #[test]
+    fn test_print_depth_prefix() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph =
+            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let rules =
+            DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+
+        let mut buf = Vec::new();
+        let tree_config = TreePrintConfig {
+            charset: Charset::Utf8,
+            prefix: Prefix::Depth,
+        };
+        print(&mut buf, &graph, &metadata, rules, tree_config)?;
+
+        let output = String::from_utf8(buf)?;
+        assert!(
+            output.contains("0"),
+            "Depth prefix should start with depth 0"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_print_no_prefix() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph =
+            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let rules =
+            DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+
+        let mut buf = Vec::new();
+        let tree_config = TreePrintConfig {
+            charset: Charset::Utf8,
+            prefix: Prefix::None,
+        };
+        print(&mut buf, &graph, &metadata, rules, tree_config)?;
+
+        let output = String::from_utf8(buf)?;
+        assert!(
+            !output.contains("├"),
+            "None prefix should not contain tree symbols"
+        );
+        assert!(
+            !output.contains("└"),
+            "None prefix should not contain tree symbols"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_charset_from_str() {
+        assert!(matches!("utf8".parse::<Charset>(), Ok(Charset::Utf8)));
+        assert!(matches!("ascii".parse::<Charset>(), Ok(Charset::Ascii)));
+        assert!("invalid".parse::<Charset>().is_err());
+    }
+
+    #[test]
+    fn test_tree_print_config_default() {
+        let config = TreePrintConfig::default();
+        assert!(matches!(config.charset, Charset::Utf8));
+        assert!(matches!(config.prefix, Prefix::Indent));
+    }
 }
