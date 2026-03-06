@@ -16,14 +16,6 @@ impl ReturnStatus {
             ReturnStatus::Violation => ExitCode::FAILURE,
         }
     }
-
-    pub fn merge(self, has_violation: bool) -> Self {
-        if has_violation || matches!(self, Self::Violation) {
-            Self::Violation
-        } else {
-            Self::NoViolation
-        }
-    }
 }
 
 pub struct HandlerConfig {
@@ -57,14 +49,23 @@ pub fn handler(config: HandlerConfig) -> anyhow::Result<ReturnStatus> {
     tracing::info!(path = ?rules_path, "loading dependency rules");
     let rules = dependency_rule::DependencyRules::from_file(rules_path)?;
 
+    tracing::info!("checking violations");
+    let report = dependency_graph::violation::check_violations(&graph, &rules);
+
     tracing::info!("printing dependency tree");
     dependency_graph::tree::print(
         &mut std::io::stdout(),
         &graph,
         &metadata,
-        rules,
+        &report,
         config.tree_config,
-    )
+    )?;
+
+    if report.has_violations() {
+        Ok(ReturnStatus::Violation)
+    } else {
+        Ok(ReturnStatus::NoViolation)
+    }
 }
 
 #[cfg(test)]

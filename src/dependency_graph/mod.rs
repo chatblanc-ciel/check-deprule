@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 pub(crate) mod formatter;
 pub mod tree;
+pub mod violation;
 
 #[derive(Debug, Clone)]
 pub struct Graph {
