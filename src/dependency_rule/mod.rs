@@ -1,5 +1,4 @@
 use anyhow::{Context, Error};
-use cargo_metadata::PackageId;
 use std::{collections::HashSet, fs};
 mod rules_parser;
 
@@ -12,11 +11,11 @@ pub struct DependencyRules {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DependencyRule {
-    pub(crate) package: PackageId,
-    pub(crate) forbidden_dependencies: HashSet<PackageId>,
+    pub(crate) package: String,
+    pub(crate) forbidden_dependencies: HashSet<String>,
 }
 impl DependencyRule {
-    pub(crate) fn new(package: PackageId, forbidden_dependencies: HashSet<PackageId>) -> Self {
+    pub(crate) fn new(package: String, forbidden_dependencies: HashSet<String>) -> Self {
         Self {
             package,
             forbidden_dependencies,
@@ -52,16 +51,10 @@ mod tests {
         let path = "tests/test_files/parse_rules_test.toml";
         let expected = DependencyRules {
             rules: vec![DependencyRule {
-                package: PackageId {
-                    repr: "package1".to_string(),
-                },
-                forbidden_dependencies: HashSet::from_iter([
-                    PackageId {
-                        repr: "package2".to_string(),
-                    },
-                    PackageId {
-                        repr: "package3".to_string(),
-                    },
+                package: "package1".to_string(),
+                forbidden_dependencies: HashSet::from([
+                    "package2".to_string(),
+                    "package3".to_string(),
                 ]),
             }],
         };
