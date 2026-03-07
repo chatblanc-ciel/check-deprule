@@ -64,7 +64,7 @@ pub fn check_violations(graph: &Graph, rules: &DependencyRules) -> ViolationRepo
 mod tests {
     use super::*;
     use crate::dependency_graph::{DependencyGraphBuildConfigs, build_dependency_graph};
-    use crate::dependency_rule::DependencyRules;
+    use crate::dependency_rule::{DependencyRule, DependencyRules};
     use crate::metadata::{CollectMetadataConfig, collect_metadata};
     use anyhow::Result;
 
@@ -137,5 +137,49 @@ mod tests {
         assert!(!report.has_violations());
         assert!(report.violations.is_empty());
         assert!(!report.is_violation("any", "pkg"));
+    }
+
+    #[test]
+    fn test_check_violations_with_empty_rules() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/tangled-clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph = build_dependency_graph(metadata, DependencyGraphBuildConfigs::default())?;
+        let rules = DependencyRules { rules: Vec::new() };
+
+        let report = check_violations(&graph, &rules);
+
+        assert!(!report.has_violations());
+        assert!(report.violations.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_check_violations_rule_package_not_in_graph() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph = build_dependency_graph(metadata, DependencyGraphBuildConfigs::default())?;
+
+        // グラフに存在しないパッケージ名のルール
+        let rules = DependencyRules {
+            rules: vec![DependencyRule::new(
+                PackageId {
+                    repr: "nonexistent-package".to_string(),
+                },
+                std::collections::HashSet::from([PackageId {
+                    repr: "also-nonexistent".to_string(),
+                }]),
+            )],
+        };
+
+        let report = check_violations(&graph, &rules);
+
+        assert!(!report.has_violations());
+        Ok(())
     }
 }
