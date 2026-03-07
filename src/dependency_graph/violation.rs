@@ -1,6 +1,5 @@
 use super::Graph;
 use crate::dependency_rule::DependencyRules;
-use cargo_metadata::PackageId;
 use petgraph::visit::{EdgeRef, IntoEdgeReferences};
 use std::collections::HashSet;
 
@@ -37,13 +36,7 @@ pub fn check_violations(graph: &Graph, rules: &DependencyRules) -> ViolationRepo
         let child = &graph.graph[edge.target()];
 
         let is_forbidden = rules.rules.iter().any(|rule| {
-            rule.package
-                == PackageId {
-                    repr: parent.name.clone(),
-                }
-                && rule.forbidden_dependencies.contains(&PackageId {
-                    repr: child.name.clone(),
-                })
+            rule.package == parent.name && rule.forbidden_dependencies.contains(&child.name)
         });
 
         if is_forbidden && violated_edges.insert((parent.name.clone(), child.name.clone())) {
@@ -64,7 +57,7 @@ pub fn check_violations(graph: &Graph, rules: &DependencyRules) -> ViolationRepo
 mod tests {
     use super::*;
     use crate::dependency_graph::{DependencyGraphBuildConfigs, build_dependency_graph};
-    use crate::dependency_rule::{DependencyRule, DependencyRules};
+    use crate::dependency_rule::DependencyRules;
     use crate::metadata::{CollectMetadataConfig, collect_metadata};
     use anyhow::Result;
 
@@ -167,13 +160,9 @@ mod tests {
 
         // グラフに存在しないパッケージ名のルール
         let rules = DependencyRules {
-            rules: vec![DependencyRule::new(
-                PackageId {
-                    repr: "nonexistent-package".to_string(),
-                },
-                std::collections::HashSet::from([PackageId {
-                    repr: "also-nonexistent".to_string(),
-                }]),
+            rules: vec![crate::dependency_rule::DependencyRule::new(
+                "nonexistent-package".to_string(),
+                HashSet::from(["also-nonexistent".to_string()]),
             )],
         };
 

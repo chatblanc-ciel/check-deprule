@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use super::{DependencyRule, DependencyRules};
 use anyhow::{Error, bail};
-use cargo_metadata::PackageId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -22,18 +21,10 @@ impl TryFrom<RulesFileSchema> for DependencyRules {
 
         let dependency_rules = rules
             .rule
-            .iter()
+            .into_iter()
             .map(|rule| {
-                let package = PackageId {
-                    repr: rule.package.clone(),
-                };
-                let forbidden_dependencies = HashSet::from_iter(
-                    rule.forbidden_dependencies
-                        .iter()
-                        .map(|p| PackageId { repr: p.clone() }),
-                );
-
-                DependencyRule::new(package, forbidden_dependencies)
+                let forbidden_dependencies = HashSet::from_iter(rule.forbidden_dependencies);
+                DependencyRule::new(rule.package, forbidden_dependencies)
             })
             .collect();
 
@@ -103,17 +94,8 @@ mod tests {
         };
         let expected = DependencyRules {
             rules: vec![DependencyRule::new(
-                PackageId {
-                    repr: "package1".to_string(),
-                },
-                HashSet::from([
-                    PackageId {
-                        repr: "package2".to_string(),
-                    },
-                    PackageId {
-                        repr: "package3".to_string(),
-                    },
-                ]),
+                "package1".to_string(),
+                HashSet::from(["package2".to_string(), "package3".to_string()]),
             )],
         };
 
