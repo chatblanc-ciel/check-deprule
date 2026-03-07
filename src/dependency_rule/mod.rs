@@ -33,7 +33,7 @@ impl DependencyRules {
         let rules_text: String = fs::read_to_string(path)?;
         let rules: RulesFileSchema = toml::from_str(&rules_text)?;
 
-        Ok(rules.into())
+        Ok(rules.try_into()?)
     }
 }
 
