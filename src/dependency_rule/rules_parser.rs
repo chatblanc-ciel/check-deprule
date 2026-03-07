@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use super::{DependencyRule, DependencyRules};
+use anyhow::{Error, bail};
 use cargo_metadata::PackageId;
 use serde::{Deserialize, Serialize};
 
@@ -8,32 +9,70 @@ use serde::{Deserialize, Serialize};
 pub struct RulesFileSchema {
     rules: Option<RulesSchema>,
 }
-impl From<RulesFileSchema> for DependencyRules {
-    fn from(rules_file: RulesFileSchema) -> Self {
-        if let Some(rules) = rules_file.rules {
-            let dependency_rules = rules
-                .rule
-                .iter()
-                .map(|rule| {
-                    let package = PackageId {
-                        repr: rule.package.clone(),
-                    };
-                    let forbidden_dependencies = HashSet::from_iter(
-                        rule.forbidden_dependencies
-                            .iter()
-                            .map(|p| PackageId { repr: p.clone() }),
-                    );
 
-                    DependencyRule::new(package, forbidden_dependencies)
-                })
-                .collect();
-            Self {
-                rules: dependency_rules,
+impl TryFrom<RulesFileSchema> for DependencyRules {
+    type Error = Error;
+
+    fn try_from(rules_file: RulesFileSchema) -> Result<Self, Self::Error> {
+        let Some(rules) = rules_file.rules else {
+            return Ok(Self { rules: Vec::new() });
+        };
+
+        validate_rules(&rules.rule)?;
+
+        let dependency_rules = rules
+            .rule
+            .iter()
+            .map(|rule| {
+                let package = PackageId {
+                    repr: rule.package.clone(),
+                };
+                let forbidden_dependencies = HashSet::from_iter(
+                    rule.forbidden_dependencies
+                        .iter()
+                        .map(|p| PackageId { repr: p.clone() }),
+                );
+
+                DependencyRule::new(package, forbidden_dependencies)
+            })
+            .collect();
+
+        Ok(Self {
+            rules: dependency_rules,
+        })
+    }
+}
+
+fn validate_rules(rules: &[RuleSchema]) -> Result<(), Error> {
+    let mut seen_packages = HashSet::new();
+
+    for rule in rules {
+        if rule.package.is_empty() {
+            bail!("rule has an empty package name");
+        }
+
+        if !seen_packages.insert(&rule.package) {
+            bail!("duplicate rule definition for package '{}'", rule.package);
+        }
+
+        for dep in &rule.forbidden_dependencies {
+            if dep.is_empty() {
+                bail!(
+                    "rule for package '{}': forbidden_dependency is empty",
+                    rule.package
+                );
             }
-        } else {
-            Self { rules: Vec::new() }
+        }
+
+        if rule.forbidden_dependencies.contains(&rule.package) {
+            bail!(
+                "rule for package '{}': package cannot forbid itself",
+                rule.package
+            );
         }
     }
+
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -53,7 +92,7 @@ mod tests {
     use string_auto_indent::auto_indent;
 
     #[test]
-    fn test_into_rules_file_schema_to_dependency_rules() {
+    fn test_try_from_rules_file_schema_to_dependency_rules() {
         let rules_file = RulesFileSchema {
             rules: Some(RulesSchema {
                 rule: vec![RuleSchema {
@@ -78,37 +117,7 @@ mod tests {
             )],
         };
 
-        let dependency_rules: DependencyRules = rules_file.into();
-        assert_eq!(dependency_rules, expected);
-    }
-
-    #[test]
-    fn test_from_rules_file_schema_to_dependency_rules() {
-        let rules_file = RulesFileSchema {
-            rules: Some(RulesSchema {
-                rule: vec![RuleSchema {
-                    package: "package1".to_string(),
-                    forbidden_dependencies: vec!["package2".to_string(), "package3".to_string()],
-                }],
-            }),
-        };
-        let expected = DependencyRules {
-            rules: vec![DependencyRule::new(
-                PackageId {
-                    repr: "package1".to_string(),
-                },
-                HashSet::from([
-                    PackageId {
-                        repr: "package2".to_string(),
-                    },
-                    PackageId {
-                        repr: "package3".to_string(),
-                    },
-                ]),
-            )],
-        };
-
-        let dependency_rules = DependencyRules::from(rules_file);
+        let dependency_rules = DependencyRules::try_from(rules_file).unwrap();
         assert_eq!(dependency_rules, expected);
     }
 
@@ -203,7 +212,7 @@ mod tests {
     fn test_parse_empty_toml() {
         let rules_text = "";
         let rules: RulesFileSchema = toml::from_str(rules_text).unwrap();
-        let dependency_rules: DependencyRules = rules.into();
+        let dependency_rules = DependencyRules::try_from(rules).unwrap();
         assert!(dependency_rules.rules.is_empty());
     }
 
@@ -211,7 +220,6 @@ mod tests {
     fn test_parse_rules_section_without_rule() {
         let rules_text = "[rules]";
         let result: Result<RulesFileSchema, _> = toml::from_str(rules_text);
-        // rules セクションに rule フィールドがない場合はパースエラー
         assert!(result.is_err());
     }
 
@@ -223,25 +231,56 @@ mod tests {
             forbidden_dependencies = []
             "#;
         let rules: RulesFileSchema = toml::from_str(rules_text).unwrap();
-        let dependency_rules: DependencyRules = rules.into();
+        let dependency_rules = DependencyRules::try_from(rules).unwrap();
         assert_eq!(dependency_rules.rules.len(), 1);
         assert!(dependency_rules.rules[0].forbidden_dependencies.is_empty());
     }
 
     #[test]
-    fn test_parse_empty_package_name() {
+    fn test_parse_invalid_toml_syntax() {
+        let rules_text = "this is not valid toml {{{";
+        let result: Result<RulesFileSchema, _> = toml::from_str(rules_text);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_empty_package_name() {
         let rules_text = r#"
             [[rules.rule]]
             package = ""
             forbidden_dependencies = ["package2"]
             "#;
         let rules: RulesFileSchema = toml::from_str(rules_text).unwrap();
-        let dependency_rules: DependencyRules = rules.into();
-        assert_eq!(dependency_rules.rules[0].package.repr, "");
+        let result = DependencyRules::try_from(rules);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("empty package name")
+        );
     }
 
     #[test]
-    fn test_parse_duplicate_package_rules() {
+    fn test_validate_empty_forbidden_dependency_name() {
+        let rules_text = r#"
+            [[rules.rule]]
+            package = "package1"
+            forbidden_dependencies = ["package2", ""]
+            "#;
+        let rules: RulesFileSchema = toml::from_str(rules_text).unwrap();
+        let result = DependencyRules::try_from(rules);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("forbidden_dependency is empty")
+        );
+    }
+
+    #[test]
+    fn test_validate_duplicate_package_rules() {
         let rules_text = r#"
             [[rules.rule]]
             package = "package1"
@@ -252,15 +291,31 @@ mod tests {
             forbidden_dependencies = ["package3"]
             "#;
         let rules: RulesFileSchema = toml::from_str(rules_text).unwrap();
-        let dependency_rules: DependencyRules = rules.into();
-        // 重複したパッケージルールはそのまま2つ保持される
-        assert_eq!(dependency_rules.rules.len(), 2);
+        let result = DependencyRules::try_from(rules);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("duplicate rule definition for package 'package1'")
+        );
     }
 
     #[test]
-    fn test_parse_invalid_toml_syntax() {
-        let rules_text = "this is not valid toml {{{";
-        let result: Result<RulesFileSchema, _> = toml::from_str(rules_text);
+    fn test_validate_self_reference() {
+        let rules_text = r#"
+            [[rules.rule]]
+            package = "package1"
+            forbidden_dependencies = ["package1"]
+            "#;
+        let rules: RulesFileSchema = toml::from_str(rules_text).unwrap();
+        let result = DependencyRules::try_from(rules);
         assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("cannot forbid itself")
+        );
     }
 }
