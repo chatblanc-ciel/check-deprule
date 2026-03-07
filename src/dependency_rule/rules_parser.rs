@@ -198,4 +198,69 @@ mod tests {
         let rules_text = toml::to_string(&rules).unwrap();
         assert_eq!(auto_indent(expected).trim(), rules_text.trim(),);
     }
+
+    #[test]
+    fn test_parse_empty_toml() {
+        let rules_text = "";
+        let rules: RulesFileSchema = toml::from_str(rules_text).unwrap();
+        let dependency_rules: DependencyRules = rules.into();
+        assert!(dependency_rules.rules.is_empty());
+    }
+
+    #[test]
+    fn test_parse_rules_section_without_rule() {
+        let rules_text = "[rules]";
+        let result: Result<RulesFileSchema, _> = toml::from_str(rules_text);
+        // rules セクションに rule フィールドがない場合はパースエラー
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_empty_forbidden_dependencies() {
+        let rules_text = r#"
+            [[rules.rule]]
+            package = "package1"
+            forbidden_dependencies = []
+            "#;
+        let rules: RulesFileSchema = toml::from_str(rules_text).unwrap();
+        let dependency_rules: DependencyRules = rules.into();
+        assert_eq!(dependency_rules.rules.len(), 1);
+        assert!(dependency_rules.rules[0].forbidden_dependencies.is_empty());
+    }
+
+    #[test]
+    fn test_parse_empty_package_name() {
+        let rules_text = r#"
+            [[rules.rule]]
+            package = ""
+            forbidden_dependencies = ["package2"]
+            "#;
+        let rules: RulesFileSchema = toml::from_str(rules_text).unwrap();
+        let dependency_rules: DependencyRules = rules.into();
+        assert_eq!(dependency_rules.rules[0].package.repr, "");
+    }
+
+    #[test]
+    fn test_parse_duplicate_package_rules() {
+        let rules_text = r#"
+            [[rules.rule]]
+            package = "package1"
+            forbidden_dependencies = ["package2"]
+
+            [[rules.rule]]
+            package = "package1"
+            forbidden_dependencies = ["package3"]
+            "#;
+        let rules: RulesFileSchema = toml::from_str(rules_text).unwrap();
+        let dependency_rules: DependencyRules = rules.into();
+        // 重複したパッケージルールはそのまま2つ保持される
+        assert_eq!(dependency_rules.rules.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_invalid_toml_syntax() {
+        let rules_text = "this is not valid toml {{{";
+        let result: Result<RulesFileSchema, _> = toml::from_str(rules_text);
+        assert!(result.is_err());
+    }
 }

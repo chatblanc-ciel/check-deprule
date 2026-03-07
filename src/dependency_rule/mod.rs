@@ -63,4 +63,36 @@ mod tests {
         let actual = DependencyRules::from_file(path).unwrap();
         assert_eq!(expected, actual);
     }
+
+    #[test]
+    fn test_from_file_nonexistent_path() {
+        let result = DependencyRules::from_file("nonexistent/path/rules.toml");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_from_file_invalid_toml() {
+        let dir = std::env::temp_dir().join("check_deprule_test_invalid");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("invalid.toml");
+        std::fs::write(&path, "not valid toml {{{").unwrap();
+
+        let result = DependencyRules::from_file(&path);
+        assert!(result.is_err());
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn test_from_file_empty_toml() {
+        let dir = std::env::temp_dir().join("check_deprule_test_empty");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("empty.toml");
+        std::fs::write(&path, "").unwrap();
+
+        let rules = DependencyRules::from_file(&path).unwrap();
+        assert!(rules.rules.is_empty());
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
