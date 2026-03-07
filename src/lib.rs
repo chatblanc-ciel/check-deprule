@@ -1,3 +1,4 @@
+use anyhow::Context;
 use std::{env, path::PathBuf, process::ExitCode};
 
 pub mod dependency_graph;
@@ -47,7 +48,12 @@ pub fn handler(config: HandlerConfig) -> anyhow::Result<ReturnStatus> {
         }
     };
     tracing::info!(path = ?rules_path, "loading dependency rules");
-    let rules = dependency_rule::DependencyRules::from_file(rules_path)?;
+    let rules = dependency_rule::DependencyRules::from_file(&rules_path).with_context(|| {
+        format!(
+            "failed to load dependency rules from '{}'",
+            rules_path.display()
+        )
+    })?;
 
     tracing::info!("checking violations");
     let report = dependency_graph::violation::check_violations(&graph, &rules);

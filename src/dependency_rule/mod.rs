@@ -1,4 +1,4 @@
-use anyhow::{Error, Ok};
+use anyhow::{Context, Error};
 use cargo_metadata::PackageId;
 use std::{collections::HashSet, fs};
 mod rules_parser;
@@ -30,10 +30,16 @@ impl DependencyRules {
     where
         P: AsRef<std::path::Path>,
     {
-        let rules_text: String = fs::read_to_string(path)?;
-        let rules: RulesFileSchema = toml::from_str(&rules_text)?;
+        let path = path.as_ref();
+        let rules_text: String = fs::read_to_string(path).with_context(|| {
+            format!("failed to read dependency rules from '{}'", path.display())
+        })?;
+        let rules: RulesFileSchema = toml::from_str(&rules_text)
+            .with_context(|| format!("failed to parse dependency rules in '{}'", path.display()))?;
 
-        Ok(rules.try_into()?)
+        rules
+            .try_into()
+            .with_context(|| format!("invalid dependency rules in '{}'", path.display()))
     }
 }
 
