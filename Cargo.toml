@@ -1,6 +1,6 @@
 [package]
 name = "check-deprule"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2024"
 rust-version = "1.85.0"
 authors = ["chatblanc-ciel <73688885+chatblanc-ciel@users.noreply.github.com>"]
