@@ -268,8 +268,7 @@ mod tests {
             ..CollectMetadataConfig::default()
         };
         let metadata = collect_metadata(config)?;
-        let graph =
-            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
         let rules =
             DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
         let report = check_violations(&graph, &rules);
@@ -295,8 +294,7 @@ mod tests {
             ..CollectMetadataConfig::default()
         };
         let metadata = collect_metadata(config)?;
-        let graph =
-            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
         let rules = DependencyRules::from_file(
             "tests/demo_crates/tangled-clean-arch/dependency_rules.toml",
         )?;
@@ -323,8 +321,7 @@ mod tests {
             ..CollectMetadataConfig::default()
         };
         let metadata = collect_metadata(config)?;
-        let graph =
-            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
         let rules =
             DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
         let report = check_violations(&graph, &rules);
@@ -351,8 +348,7 @@ mod tests {
             ..CollectMetadataConfig::default()
         };
         let metadata = collect_metadata(config)?;
-        let graph =
-            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
         let rules =
             DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
         let report = check_violations(&graph, &rules);
@@ -376,8 +372,7 @@ mod tests {
             ..CollectMetadataConfig::default()
         };
         let metadata = collect_metadata(config)?;
-        let graph =
-            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
         let rules =
             DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
         let report = check_violations(&graph, &rules);
@@ -404,8 +399,7 @@ mod tests {
             ..CollectMetadataConfig::default()
         };
         let metadata = collect_metadata(config)?;
-        let graph =
-            build_dependency_graph(metadata.clone(), DependencyGraphBuildConfigs::default())?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
         let rules =
             DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
         let report = check_violations(&graph, &rules);

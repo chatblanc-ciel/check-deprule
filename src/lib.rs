@@ -31,8 +31,7 @@ pub fn handler(config: HandlerConfig) -> anyhow::Result<ReturnStatus> {
     let metadata = metadata::collect_metadata(config.metadata_configs.clone())?;
 
     tracing::info!("building dependency graph");
-    let graph =
-        dependency_graph::build_dependency_graph(metadata.clone(), config.graph_build_configs)?;
+    let graph = dependency_graph::build_dependency_graph(&metadata, config.graph_build_configs)?;
 
     let rules_path = match config.rules_path {
         Some(path) => path,
