@@ -30,39 +30,40 @@ impl DependencyGraphBuildConfigs {
 
 #[tracing::instrument(skip(metadata), fields(packages = metadata.packages.len()))]
 pub fn build_dependency_graph(
-    metadata: Metadata,
+    metadata: &Metadata,
     config: DependencyGraphBuildConfigs,
 ) -> Result<Graph, Error> {
     let resolve = metadata
         .resolve
+        .as_ref()
         .ok_or_else(|| anyhow!("cargo metadata did not return dependency resolve information"))?;
 
     let mut graph = Graph {
         graph: StableGraph::new(),
         nodes: HashMap::new(),
-        root: resolve.root,
+        root: resolve.root.clone(),
     };
 
-    for package in metadata.packages {
+    for package in &metadata.packages {
         let id = package.id.clone();
-        let index = graph.graph.add_node(package);
+        let index = graph.graph.add_node(package.clone());
         graph.nodes.insert(id, index);
     }
 
-    for node in resolve.nodes {
+    for node in &resolve.nodes {
         if node.deps.len() != node.dependencies.len() {
             return Err(anyhow!("cargo tree requires cargo 1.41 or newer"));
         }
 
         let from = graph.nodes[&node.id];
-        for dep in node.deps {
+        for dep in &node.deps {
             if dep.dep_kinds.is_empty() {
                 return Err(anyhow!("cargo tree requires cargo 1.41 or newer"));
             }
 
             // https://github.com/rust-lang/cargo/issues/7752
             let mut kinds = vec![];
-            for kind in dep.dep_kinds {
+            for kind in &dep.dep_kinds {
                 if !kinds.contains(&kind.kind) {
                     kinds.push(kind.kind);
                 }
@@ -115,7 +116,7 @@ mod tests {
     fn test_build_dependency_graph_creates_nodes() -> Result<()> {
         let metadata = clean_arch_metadata()?;
         let workspace_count = metadata.workspace_members.len();
-        let graph = build_dependency_graph(metadata, DependencyGraphBuildConfigs::default())?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
 
         assert!(graph.nodes.len() >= workspace_count);
         Ok(())
@@ -124,10 +125,9 @@ mod tests {
     #[test]
     fn test_build_dependency_graph_workspace_members_present() -> Result<()> {
         let metadata = clean_arch_metadata()?;
-        let member_ids: Vec<_> = metadata.workspace_members.clone();
-        let graph = build_dependency_graph(metadata, DependencyGraphBuildConfigs::default())?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
 
-        for id in &member_ids {
+        for id in &metadata.workspace_members {
             assert!(
                 graph.nodes.contains_key(id),
                 "missing workspace member: {id}"
@@ -140,10 +140,10 @@ mod tests {
     fn test_build_dependency_graph_no_dev_dependencies() -> Result<()> {
         let metadata = clean_arch_metadata()?;
         let config_with_dev = DependencyGraphBuildConfigs::new(false);
-        let graph_with_dev = build_dependency_graph(metadata.clone(), config_with_dev)?;
+        let graph_with_dev = build_dependency_graph(&metadata, config_with_dev)?;
 
         let config_no_dev = DependencyGraphBuildConfigs::new(true);
-        let graph_no_dev = build_dependency_graph(metadata, config_no_dev)?;
+        let graph_no_dev = build_dependency_graph(&metadata, config_no_dev)?;
 
         assert!(
             graph_no_dev.graph.edge_count() <= graph_with_dev.graph.edge_count(),
