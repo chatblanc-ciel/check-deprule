@@ -27,10 +27,21 @@ Install the CLI application:
 cargo install check-deprule
 ```
 
-Run the tool. Packages that violate the rules will be highlighted in red:
+Run the tool. Each forbidden dependency is printed on its own line, followed by the number of violations. The exit code is 1 if there are violations and 0 otherwise:
 
 ```bash
 check-deprule
+```
+
+```text
+violation: core -> handler
+1 violation found
+```
+
+To see the whole dependency tree, add `--tree`. Violating lines in the tree end with `[violation]` (and are also shown in red on a terminal). The tree grows with the size of the workspace.
+
+```bash
+check-deprule --tree
 ```
 
 ## Remaining Tasks

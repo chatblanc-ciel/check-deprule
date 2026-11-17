@@ -1,5 +1,5 @@
 use anyhow::Context;
-use std::{env, path::PathBuf, process::ExitCode};
+use std::{env, io::Write, path::PathBuf, process::ExitCode};
 
 pub mod dependency_graph;
 pub mod dependency_rule;
@@ -23,10 +23,15 @@ pub struct HandlerConfig {
     pub graph_build_configs: dependency_graph::DependencyGraphBuildConfigs,
     pub metadata_configs: metadata::CollectMetadataConfig,
     pub tree_config: dependency_graph::tree::TreePrintConfig,
+    pub print_tree: bool,
     pub rules_path: Option<PathBuf>,
 }
 
 pub fn handler(config: HandlerConfig) -> anyhow::Result<ReturnStatus> {
+    handle(config, &mut std::io::stdout().lock())
+}
+
+fn handle(config: HandlerConfig, writer: &mut impl Write) -> anyhow::Result<ReturnStatus> {
     tracing::info!("collecting cargo metadata");
     let metadata = metadata::collect_metadata(config.metadata_configs.clone())?;
 
@@ -57,14 +62,13 @@ pub fn handler(config: HandlerConfig) -> anyhow::Result<ReturnStatus> {
     tracing::info!("checking violations");
     let report = dependency_graph::violation::check_violations(&graph, &rules);
 
-    tracing::info!("printing dependency tree");
-    dependency_graph::tree::print(
-        &mut std::io::stdout(),
-        &graph,
-        &metadata,
-        &report,
-        config.tree_config,
-    )?;
+    if config.print_tree {
+        tracing::info!("printing dependency tree");
+        dependency_graph::tree::print(writer, &graph, &metadata, &report, config.tree_config)?;
+    }
+
+    tracing::info!("printing violations");
+    dependency_graph::violation::print(writer, &report)?;
 
     if report.has_violations() {
         Ok(ReturnStatus::Violation)
@@ -90,8 +94,15 @@ mod tests {
                 ..CollectMetadataConfig::default()
             },
             tree_config: TreePrintConfig::default(),
+            print_tree: false,
             rules_path: None,
         }
+    }
+
+    fn handle_to_string(config: HandlerConfig) -> Result<(ReturnStatus, String)> {
+        let mut buf = Vec::new();
+        let status = handle(config, &mut buf)?;
+        Ok((status, String::from_utf8(buf)?))
     }
 
     #[test]
@@ -115,6 +126,48 @@ mod tests {
         let config = handler_config("tests/demo_crates/tangled-clean-arch/Cargo.toml");
         let result = handler(config)?;
         assert_eq!(result.to_return_code(), ExitCode::FAILURE);
+        Ok(())
+    }
+
+    #[test]
+    fn test_handler_output_no_violation() -> Result<()> {
+        let config = handler_config("tests/demo_crates/clean-arch/Cargo.toml");
+        let (status, output) = handle_to_string(config)?;
+
+        assert_eq!(status.to_return_code(), ExitCode::SUCCESS);
+        assert_eq!(output, "no violations found\n");
+        Ok(())
+    }
+
+    #[test]
+    fn test_handler_output_lists_violations_without_tree() -> Result<()> {
+        let config = handler_config("tests/demo_crates/tangled-clean-arch/Cargo.toml");
+        let (status, output) = handle_to_string(config)?;
+
+        assert_eq!(status.to_return_code(), ExitCode::FAILURE);
+        assert!(output.contains("violation: tangled-ca-core -> tangled-ca-handler\n"));
+        assert!(output.ends_with("5 violations found\n"));
+        assert!(
+            output
+                .lines()
+                .all(|line| line.starts_with("violation: ") || line == "5 violations found"),
+            "default output must not include the dependency tree: {output}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_handler_output_tree() -> Result<()> {
+        let config = HandlerConfig {
+            print_tree: true,
+            ..handler_config("tests/demo_crates/tangled-clean-arch/Cargo.toml")
+        };
+        let (status, output) = handle_to_string(config)?;
+
+        assert_eq!(status.to_return_code(), ExitCode::FAILURE);
+        assert!(output.contains("└── "), "tree should be printed: {output}");
+        assert!(output.lines().any(|line| line.ends_with(" [violation]")));
+        assert!(output.ends_with("5 violations found\n"));
         Ok(())
     }
 }
