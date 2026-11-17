@@ -1,7 +1,9 @@
 use super::Graph;
 use crate::dependency_rule::DependencyRules;
+use anyhow::Error;
 use petgraph::visit::{EdgeRef, IntoEdgeReferences};
 use std::collections::HashSet;
+use std::io::Write;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Violation {
@@ -51,6 +53,31 @@ pub fn check_violations(graph: &Graph, rules: &DependencyRules) -> ViolationRepo
         violations,
         violated_edges,
     }
+}
+
+pub fn print(writer: &mut impl Write, report: &ViolationReport) -> Result<(), Error> {
+    let mut violations: Vec<&Violation> = report.violations.iter().collect();
+    violations.sort_by(|a, b| {
+        a.parent
+            .cmp(&b.parent)
+            .then_with(|| a.dependency.cmp(&b.dependency))
+    });
+
+    for violation in &violations {
+        writeln!(
+            writer,
+            "violation: {} -> {}",
+            violation.parent, violation.dependency
+        )?;
+    }
+
+    match violations.len() {
+        0 => writeln!(writer, "no violations found")?,
+        1 => writeln!(writer, "1 violation found")?,
+        n => writeln!(writer, "{n} violations found")?,
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -169,6 +196,63 @@ mod tests {
         let report = check_violations(&graph, &rules);
 
         assert!(!report.has_violations());
+        Ok(())
+    }
+
+    #[test]
+    fn test_print_violations_lists_each_edge_sorted() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/tangled-clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
+        let rules = DependencyRules::from_file(
+            "tests/demo_crates/tangled-clean-arch/dependency_rules.toml",
+        )?;
+        let report = check_violations(&graph, &rules);
+
+        let mut buf = Vec::new();
+        print(&mut buf, &report)?;
+
+        let expected = "\
+violation: tangled-ca-core -> tangled-ca-database
+violation: tangled-ca-core -> tangled-ca-handler
+violation: tangled-ca-interactor -> tangled-ca-database
+violation: tangled-ca-interactor -> tangled-ca-handler
+violation: tangled-ca-interactor -> tangled-ca-repositry
+5 violations found
+";
+        assert_eq!(String::from_utf8(buf)?, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_print_violations_single() -> Result<()> {
+        let report = ViolationReport {
+            violations: vec![Violation {
+                parent: "core".to_string(),
+                dependency: "handler".to_string(),
+            }],
+            violated_edges: HashSet::from([("core".to_string(), "handler".to_string())]),
+        };
+
+        let mut buf = Vec::new();
+        print(&mut buf, &report)?;
+
+        assert_eq!(
+            String::from_utf8(buf)?,
+            "violation: core -> handler\n1 violation found\n"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_print_violations_no_violation() -> Result<()> {
+        let mut buf = Vec::new();
+        print(&mut buf, &ViolationReport::default())?;
+
+        assert_eq!(String::from_utf8(buf)?, "no violations found\n");
         Ok(())
     }
 }

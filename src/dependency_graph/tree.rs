@@ -10,6 +10,10 @@ use petgraph::visit::EdgeRef;
 use std::collections::HashSet;
 use std::io::Write;
 
+// The red color is dropped when stdout is not a tty (e.g. CI logs), so the
+// violation must also be visible as plain text.
+const VIOLATION_MARK: &str = " [violation]";
+
 #[derive(Clone, Copy, clap::ValueEnum)]
 pub enum Prefix {
     None,
@@ -155,7 +159,12 @@ impl<'a, W: Write> TreePrinter<'a, W> {
         match is_violation {
             true => {
                 let f = Pattern(vec![Chunk::ViolationPackage]);
-                writeln!(self.writer, "{}{}", f.display(package), star)?;
+                writeln!(
+                    self.writer,
+                    "{}{}{VIOLATION_MARK}",
+                    f.display(package),
+                    star
+                )?;
             }
             false => writeln!(self.writer, "{}{}", self.format.display(package), star)?,
         };
@@ -311,6 +320,74 @@ mod tests {
 
         assert!(!buf.is_empty());
         assert!(report.has_violations());
+        Ok(())
+    }
+
+    #[test]
+    fn test_print_marks_violation_lines_with_text() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/tangled-clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
+        let rules = DependencyRules::from_file(
+            "tests/demo_crates/tangled-clean-arch/dependency_rules.toml",
+        )?;
+        let report = check_violations(&graph, &rules);
+
+        let mut buf = Vec::new();
+        print(
+            &mut buf,
+            &graph,
+            &metadata,
+            &report,
+            TreePrintConfig::default(),
+        )?;
+
+        let output = String::from_utf8(buf)?;
+        let marked: Vec<&str> = output
+            .lines()
+            .filter(|line| line.ends_with(" [violation]"))
+            .collect();
+        assert!(!marked.is_empty());
+        assert!(
+            marked
+                .iter()
+                .any(|line| line.contains("tangled-ca-repositry v0.1.0"))
+        );
+        assert!(
+            output
+                .lines()
+                .filter(|line| line.contains("tangled-ca-core v0.1.0"))
+                .all(|line| !line.contains("[violation]")),
+            "tangled-ca-core is never a forbidden dependency"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_print_no_violation_has_no_mark() -> Result<()> {
+        let config = CollectMetadataConfig {
+            manifest_path: Some("tests/demo_crates/clean-arch/Cargo.toml".to_string()),
+            ..CollectMetadataConfig::default()
+        };
+        let metadata = collect_metadata(config)?;
+        let graph = build_dependency_graph(&metadata, DependencyGraphBuildConfigs::default())?;
+        let rules =
+            DependencyRules::from_file("tests/demo_crates/clean-arch/dependency_rules.toml")?;
+        let report = check_violations(&graph, &rules);
+
+        let mut buf = Vec::new();
+        print(
+            &mut buf,
+            &graph,
+            &metadata,
+            &report,
+            TreePrintConfig::default(),
+        )?;
+
+        assert!(!String::from_utf8(buf)?.contains("[violation]"));
         Ok(())
     }
 

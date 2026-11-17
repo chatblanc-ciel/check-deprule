@@ -108,9 +108,7 @@ mod tests {
     #[test]
     fn test_chunk_violation_format() {
         let violation_package_display = Display {
-            pattern: &Pattern {
-                0: vec![Chunk::ViolationPackage],
-            },
+            pattern: &Pattern(vec![Chunk::ViolationPackage]),
             package: &cargo_metadata::PackageBuilder::new(
                 "package".to_string(),
                 Version::parse("1.0.0").unwrap(),

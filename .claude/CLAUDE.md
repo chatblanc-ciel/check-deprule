@@ -1,7 +1,7 @@
 # check-deprule
 
 Cargo workspace の依存関係制約を検証する Rust CLI ツール。
-`dependency_rules.toml` に定義したルールに違反するパッケージを検出し、赤字で表示する。
+`dependency_rules.toml` に定義したルールに違反する依存を検出し、1 行ずつ出す。`--tree` で依存の木も出す。
 
 ## Quick Reference
 
@@ -61,4 +61,4 @@ gh pr checks {pr-number} --watch
 | `petgraph` | 依存グラフ構造 (StableGraph) |
 | `anyhow` | エラーハンドリング |
 | `serde` + `toml` | ルールファイル解析 |
-| `colored` | 違反パッケージの赤字表示 |
+| `colored` | `--tree` での違反パッケージの赤字表示 |

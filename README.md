@@ -31,10 +31,21 @@ CLIアプリケーションのインストール
 cargo install check-deprule
 ```
 
-ルールを満たさないパッケージが赤字で示されます。
+ルールに違反する依存を 1 行ずつ出し、最後に件数を出します。違反があれば終了コードは 1、無ければ 0 です。
 
 ```bash
 check-deprule
+```
+
+```text
+violation: core -> handler
+1 violation found
+```
+
+依存の木の全体を見るときは `--tree` を付けます。木の中の違反の行には `[violation]` が付きます (端末では赤字にもなります)。木は workspace の大きさに応じて大きくなります。
+
+```bash
+check-deprule --tree
 ```
 
 ## Roadmap
